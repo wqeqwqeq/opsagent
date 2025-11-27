@@ -87,7 +87,7 @@ async def main():
             # Should reject - unrelated query
             # "What's the weather today?",
             # Uncomment to test other scenarios:
-            "List all open change requests and tell my if snowflake is up and running?",  # servicenow only
+            "List all open change requests and tell my if snowflake and databricks is up and running?",  # servicenow only
             # "Check Databricks health status",  # service_health only
             # "Check all service health and list any recent incidents",  # multiple agents
         ]
