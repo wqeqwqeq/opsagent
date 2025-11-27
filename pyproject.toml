@@ -1,0 +1,12 @@
+[project]
+name = "opsagent2"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "azure-identity>=1.15.0",
+    "pyyaml>=6.0.1",
+    "python-dotenv>=1.0.0",
+    "agent-framework>=1.0.0b251120",
+]
