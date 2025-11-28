@@ -13,7 +13,7 @@ RUN uv sync
 
 # Copy Flask application files
 COPY flask_app.py ./
-COPY app/ ./app/
+COPY opsagent/ ./opsagent/
 COPY .env .
 
 # Expose port (documentation only - actual port set via WEBSITES_PORT)

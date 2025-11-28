@@ -8,5 +8,23 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Samples directory
 samples
+
+# Environment variables (contains secrets!)
 .env
+
+# Chat history (local storage)
+.chat_history/
+
+# Generated files
+requirements.txt
+
+# Deployment artifacts
+app_bundle.zip
+app_bundle/
+video
+
+# OS files
+.DS_Store
