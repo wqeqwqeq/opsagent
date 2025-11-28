@@ -5,6 +5,7 @@ from agent_framework import (
     AgentExecutor,
     AgentExecutorRequest,
     AgentExecutorResponse,
+    ChatAgent,
     ChatMessage,
     Executor,
     Role,
@@ -15,6 +16,15 @@ from agent_framework import (
 )
 from pydantic import BaseModel
 from typing_extensions import Never
+
+
+# === Custom Response for Fan-In ===
+@dataclass
+class AgentResponse:
+    """Response from a filtered agent executor for fan-in aggregation."""
+
+    executor_id: str
+    text: str
 
 
 # === Pydantic Models for Triage Output ===
@@ -91,35 +101,69 @@ async def reject_query(triage: TriageResult, ctx: WorkflowContext[Never, str]) -
     )
 
 
-# === Agent Bridge Executors ===
-# These executors check if their agent is needed and forward the question
-class AgentBridge(Executor):
-    """Bridge executor that checks if agent is needed and forwards the task question."""
+# === Dispatcher for Fan-Out ===
+class DispatchToAgents(Executor):
+    """Dispatches triage result to all agent executors for parallel processing."""
 
-    def __init__(self, agent_name: str, id: str):
+    def __init__(self, id: str = "dispatch_to_agents"):
         super().__init__(id=id)
-        self._agent_name = agent_name
 
     @handler
-    async def forward_if_needed(
-        self, triage: TriageResult, ctx: WorkflowContext[AgentExecutorRequest]
+    async def dispatch(
+        self, triage: TriageResult, ctx: WorkflowContext[TriageResult]
     ) -> None:
-        # Collect ALL tasks for this agent
+        # Only dispatch if not rejected and has tasks
+        if not triage.should_reject and triage.tasks:
+            # Send triage result to all agents (fan-out edges will route it)
+            await ctx.send_message(triage)
+
+
+# === Filtered Agent Executor ===
+# Custom executor that filters tasks and invokes the wrapped agent directly
+class FilteredAgentExecutor(Executor):
+    """Agent executor that filters tasks and invokes the wrapped agent."""
+
+    def __init__(self, agent: ChatAgent, agent_key: str, id: str):
+        super().__init__(id=id)
+        self._agent = agent
+        self._agent_key = agent_key  # "servicenow", "log_analytics", "service_health"
+
+    @handler
+    async def handle(
+        self, triage: TriageResult, ctx: WorkflowContext[AgentResponse]
+    ) -> None:
+        # Collect all tasks for this agent
         questions = [
-            task.question for task in triage.tasks if task.agent == self._agent_name
+            task.question for task in triage.tasks if task.agent == self._agent_key
         ]
 
         if not questions:
-            # Agent not needed - don't send anything (will be excluded from fan-in)
+            # No tasks for this agent - send empty response for fan-in
+            await ctx.send_message(
+                AgentResponse(
+                    executor_id=self.id,
+                    text="",  # Empty response, will be filtered in aggregator
+                )
+            )
             return
 
-        # Combine multiple questions into a single message
-        combined_question = "\n".join(f"- {q}" for q in questions) if len(questions) > 1 else questions[0]
+        # Combine questions if multiple
+        combined = (
+            "\n".join(f"- {q}" for q in questions)
+            if len(questions) > 1
+            else questions[0]
+        )
 
+        # Invoke the agent (ChatAgent.run() returns AgentRunResponse)
+        response = await self._agent.run(
+            messages=[ChatMessage(Role.USER, text=combined)]
+        )
+
+        # Send response for fan-in aggregation
         await ctx.send_message(
-            AgentExecutorRequest(
-                messages=[ChatMessage(Role.USER, text=combined_question)],
-                should_respond=True,
+            AgentResponse(
+                executor_id=self.id,
+                text=response.text,
             )
         )
 
@@ -133,44 +177,33 @@ class AggregateResponses(Executor):
 
     @handler
     async def aggregate(
-        self, results: list[AgentExecutorResponse], ctx: WorkflowContext[Never, str]
+        self, results: list[AgentResponse], ctx: WorkflowContext[Never, str]
     ) -> None:
-        # Build consolidated response
+        # Build consolidated response, filtering out empty responses
         sections = []
         for r in results:
-            agent_name = (
-                r.executor_id.replace("_executor", "").replace("_", " ").title()
-            )
-            sections.append(f"## {agent_name}\n{r.agent_run_response.text}")
+            if r.text:  # Only include non-empty responses
+                agent_name = (
+                    r.executor_id.replace("_executor", "").replace("_", " ").title()
+                )
+                sections.append(f"## {agent_name}\n{r.text}")
 
         consolidated = "\n\n---\n\n".join(sections)
         await ctx.yield_output(consolidated)
 
 
-# === Selection Function for Multi-Selection Edge Group ===
-def select_agents(triage: TriageResult, target_ids: list[str]) -> list[str]:
-    """Select which agent bridges to fan-out to based on triage result.
+# === Selection Function for Dispatch vs Reject ===
+def select_dispatch_or_reject(triage: TriageResult, target_ids: list[str]) -> list[str]:
+    """Select dispatcher or reject based on triage result.
 
-    target_ids order: [servicenow_bridge, log_analytics_bridge, service_health_bridge, reject_query]
+    target_ids order: [dispatch_to_agents, reject_query]
     """
-    servicenow_id, log_analytics_id, service_health_id, reject_id = target_ids
+    dispatch_id, reject_id = target_ids
 
     if triage.should_reject or not triage.tasks:
         return [reject_id]
 
-    # Return bridges for all agents that have tasks assigned
-    selected = []
-    agent_to_bridge = {
-        "servicenow": servicenow_id,
-        "log_analytics": log_analytics_id,
-        "service_health": service_health_id,
-    }
-    for task in triage.tasks:
-        bridge_id = agent_to_bridge.get(task.agent)
-        if bridge_id and bridge_id not in selected:
-            selected.append(bridge_id)
-
-    return selected
+    return [dispatch_id]
 
 
 # === Workflow Factory ===
@@ -187,38 +220,45 @@ def create_triage_workflow():
     log_analytics = create_log_analytics_agent()
     service_health = create_service_health_agent()
 
-    # Wrap agents as AgentExecutors for workflow
+    # Triage uses standard AgentExecutor (for structured output)
     triage_executor = AgentExecutor(triage, id="triage_agent")
-    servicenow_executor = AgentExecutor(servicenow, id="servicenow_executor")
-    log_analytics_executor = AgentExecutor(log_analytics, id="log_analytics_executor")
-    service_health_executor = AgentExecutor(
-        service_health, id="service_health_executor"
-    )
 
-    # Create bridge executors (fan-out targets that forward to agents)
-    servicenow_bridge = AgentBridge(agent_name="servicenow", id="servicenow_bridge")
-    log_analytics_bridge = AgentBridge(agent_name="log_analytics", id="log_analytics_bridge")
-    service_health_bridge = AgentBridge(agent_name="service_health", id="service_health_bridge")
+    # Dispatcher routes to all agents
+    dispatcher = DispatchToAgents()
+
+    # Wrap domain agents with FilteredAgentExecutor (each checks if it has tasks)
+    servicenow_executor = FilteredAgentExecutor(
+        servicenow, "servicenow", id="servicenow_executor"
+    )
+    log_analytics_executor = FilteredAgentExecutor(
+        log_analytics, "log_analytics", id="log_analytics_executor"
+    )
+    service_health_executor = FilteredAgentExecutor(
+        service_health, "service_health", id="service_health_executor"
+    )
 
     aggregator = AggregateResponses()
 
     # Build workflow
     workflow = (
-        WorkflowBuilder()
+        WorkflowBuilder(
+            name = 'Data Ops Triage Workflow',
+            description = 'Routes data ops queries to specialized agents for ServiceNow, Log Analytics, and Service Health.'
+        )
         .set_start_executor(store_query)
         .add_edge(store_query, triage_executor)
         .add_edge(triage_executor, parse_triage_output)
-        # Conditional fan-out: select bridges for needed agents OR reject
-        # The selection function returns multiple bridge IDs for parallel execution
+        # Route to dispatcher OR reject
         .add_multi_selection_edge_group(
             parse_triage_output,
-            [servicenow_bridge, log_analytics_bridge, service_health_bridge, reject_query],
-            selection_func=select_agents,
+            [dispatcher, reject_query],
+            selection_func=select_dispatch_or_reject,
         )
-        # Connect bridges to their respective agent executors
-        .add_edge(servicenow_bridge, servicenow_executor)
-        .add_edge(log_analytics_bridge, log_analytics_executor)
-        .add_edge(service_health_bridge, service_health_executor)
+        # Fan-out from dispatcher to ALL agents (they filter internally)
+        .add_fan_out_edges(
+            dispatcher,
+            [servicenow_executor, log_analytics_executor, service_health_executor],
+        )
         # Fan-in from all agents to aggregator
         .add_fan_in_edges(
             [servicenow_executor, log_analytics_executor, service_health_executor],

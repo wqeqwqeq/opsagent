@@ -10,3 +10,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "agent-framework>=1.0.0b251120",
 ]
+
+
+[tool.uv]
+prerelease = "allow"
