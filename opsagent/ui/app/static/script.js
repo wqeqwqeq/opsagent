@@ -430,24 +430,37 @@ async function handleVideoMessage() {
         const newConvo = await createConversation();
         currentConversationId = newConvo.id;
 
-        // Send message with video context
-        await sendMessage(currentConversationId, messageWithContext);
-
-        // Switch back to chat view
+        // Switch to chat view immediately
         currentView = 'chat';
+        renderConversationFromWelcome();
 
-        // Refresh conversations list
+        // 1. Immediately show user message
+        appendUserMessage(messageWithContext);
+
+        // 2. Show thinking indicator
+        showThinkingIndicator();
+
+        // 3. Send message with video context
+        const response = await sendMessage(currentConversationId, messageWithContext);
+
+        // 4. Get the assistant's response from the API response
+        const assistantContent = response.assistant_message.content;
+
+        // 5. Replace thinking with actual response
+        replaceThinkingWithResponse(assistantContent);
+
+        // 6. Update sidebar
         await fetchConversations();
         renderConversationsList();
-
-        // Load and display the new conversation
-        const convo = await fetchConversation(currentConversationId);
-        renderConversation(convo);
     } catch (error) {
         console.error('Error sending video message:', error);
+        const thinkingMsg = document.querySelector('.thinking-message');
+        if (thinkingMsg) thinkingMsg.remove();
         alert('Failed to send message. Please try again.');
     } finally {
         input.disabled = false;
+        const newInput = document.getElementById('message-input');
+        if (newInput) newInput.focus();
     }
 }
 
@@ -483,24 +496,37 @@ async function handleGalleryMessage() {
         const newConvo = await createConversation();
         currentConversationId = newConvo.id;
 
-        // Send message without video context
-        await sendMessage(currentConversationId, message);
-
-        // Switch back to chat view
+        // Switch to chat view immediately
         currentView = 'chat';
+        renderConversationFromWelcome();
 
-        // Refresh conversations list
+        // 1. Immediately show user message
+        appendUserMessage(message);
+
+        // 2. Show thinking indicator
+        showThinkingIndicator();
+
+        // 3. Send message
+        const response = await sendMessage(currentConversationId, message);
+
+        // 4. Get the assistant's response from the API response
+        const assistantContent = response.assistant_message.content;
+
+        // 5. Replace thinking with actual response
+        replaceThinkingWithResponse(assistantContent);
+
+        // 6. Update sidebar
         await fetchConversations();
         renderConversationsList();
-
-        // Load and display the new conversation
-        const convo = await fetchConversation(currentConversationId);
-        renderConversation(convo);
     } catch (error) {
         console.error('Error sending gallery message:', error);
+        const thinkingMsg = document.querySelector('.thinking-message');
+        if (thinkingMsg) thinkingMsg.remove();
         alert('Failed to send message. Please try again.');
     } finally {
         input.disabled = false;
+        const newInput = document.getElementById('message-input');
+        if (newInput) newInput.focus();
     }
 }
 
@@ -744,37 +770,148 @@ function startInlineRename(id) {
     });
 }
 
+// ============================================================
+// Optimistic UI Helper Functions
+// ============================================================
+
+// Append a single user message to the current chat
+function appendUserMessage(message) {
+    const container = document.querySelector('.messages-container');
+    if (!container) return;
+
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'message user';
+    msgDiv.innerHTML = `
+        <div class="message-role">You</div>
+        <div class="message-content">${escapeHtml(message)}</div>
+    `;
+    container.appendChild(msgDiv);
+
+    // Scroll to bottom
+    const chatCanvas = document.getElementById('chat-canvas');
+    chatCanvas.scrollTop = chatCanvas.scrollHeight;
+}
+
+// Show thinking indicator
+function showThinkingIndicator() {
+    const container = document.querySelector('.messages-container');
+    if (!container) return;
+
+    const thinkingDiv = document.createElement('div');
+    thinkingDiv.className = 'message assistant thinking-message';
+    thinkingDiv.innerHTML = `
+        <div class="message-role">Assistant</div>
+        <div class="thinking-indicator">
+            <span class="thinking-text">Thinking...</span>
+        </div>
+    `;
+    container.appendChild(thinkingDiv);
+
+    // Scroll to bottom
+    const chatCanvas = document.getElementById('chat-canvas');
+    chatCanvas.scrollTop = chatCanvas.scrollHeight;
+}
+
+// Replace thinking indicator with actual response
+function replaceThinkingWithResponse(content) {
+    const thinkingMsg = document.querySelector('.thinking-message');
+    if (thinkingMsg) {
+        thinkingMsg.classList.remove('thinking-message');
+        thinkingMsg.innerHTML = `
+            <div class="message-role">Assistant</div>
+            <div class="message-content">${escapeHtml(content)}</div>
+        `;
+    }
+
+    // Scroll to bottom
+    const chatCanvas = document.getElementById('chat-canvas');
+    chatCanvas.scrollTop = chatCanvas.scrollHeight;
+}
+
+// Transition from welcome screen to conversation view
+function renderConversationFromWelcome() {
+    const chatCanvas = document.getElementById('chat-canvas');
+    chatCanvas.className = 'chat-canvas';
+
+    chatCanvas.innerHTML = `
+        <div class="messages-container"></div>
+        <div class="input-wrapper">
+            <div class="input-box">
+                <button class="icon-btn">
+                    <svg class="icon" viewBox="0 0 24 24">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+                <input type="text" class="input-text" placeholder="Message…" id="message-input">
+                <button class="icon-btn" id="send-btn">
+                    <svg class="icon" style="fill:#999; stroke:none;" viewBox="0 0 24 24">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    `;
+
+    attachInputHandlers();
+}
+
 async function handleSendMessage() {
     const input = document.getElementById('message-input');
     const message = input.value.trim();
 
     if (!message) return;
 
-    // Create new chat if needed
-    if (!currentConversationId) {
-        const newConvo = await createConversation();
-        currentConversationId = newConvo.id;
-    }
-
+    // Clear input immediately
     input.value = '';
     input.disabled = true;
 
-    try {
-        // Send message
-        await sendMessage(currentConversationId, message);
+    // Check if we're on the welcome screen (no messages container)
+    const isOnWelcomeScreen = !document.querySelector('.messages-container');
 
-        // Refresh conversations list (chat moved to top)
+    try {
+        // Create new chat if needed
+        if (!currentConversationId) {
+            const newConvo = await createConversation();
+            currentConversationId = newConvo.id;
+        }
+
+        // Transition from welcome screen to conversation view if needed
+        if (isOnWelcomeScreen) {
+            renderConversationFromWelcome();
+        }
+
+        // 1. Immediately show user message
+        appendUserMessage(message);
+
+        // 2. Show thinking indicator
+        showThinkingIndicator();
+
+        // 3. Send message and wait for response
+        const response = await sendMessage(currentConversationId, message);
+
+        // 4. Get the assistant's response from the API response
+        const assistantContent = response.assistant_message.content;
+
+        // 5. Replace thinking with actual response
+        replaceThinkingWithResponse(assistantContent);
+
+        // 6. Update sidebar (conversation moved to top, title may have changed)
         await fetchConversations();
         renderConversationsList();
-
-        // Reload current conversation
-        const convo = await fetchConversation(currentConversationId);
-        renderConversation(convo);
     } catch (error) {
         console.error('Error sending message:', error);
+        // Remove thinking indicator and show error
+        const thinkingMsg = document.querySelector('.thinking-message');
+        if (thinkingMsg) thinkingMsg.remove();
         alert('Failed to send message. Please try again.');
     } finally {
-        input.disabled = false;
+        // Get the current input element (may have changed after renderConversationFromWelcome)
+        const currentInput = document.getElementById('message-input');
+        if (currentInput) {
+            currentInput.disabled = false;
+            currentInput.focus();
+        }
     }
 }
 

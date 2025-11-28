@@ -1057,3 +1057,22 @@ details[open] .chevron-icon {
     font-size: 0.9rem;
     color: #999;
 }
+
+/* --- Thinking Indicator --- */
+.thinking-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 0;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.thinking-indicator .thinking-text {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
