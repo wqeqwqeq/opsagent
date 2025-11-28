@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.chat_history/
+
+# Environment variables (contains secrets!)
+.env
+
+# Generated files (auto-generated from pyproject.toml)
+requirements.txt
+
+# Deployment artifacts
+app_bundle.zip
+app_bundle/
+video
