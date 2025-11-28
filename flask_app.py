@@ -3,6 +3,7 @@ flask_app.py
 Flask-based chat UI backend with REST API endpoints.
 Supports persistent chat history via PostgreSQL/Redis/Local storage.
 """
+import asyncio
 import os
 import uuid
 import logging
@@ -15,7 +16,9 @@ from dotenv import load_dotenv
 from azure.identity import DefaultAzureCredential, AzureCliCredential
 from azure.storage.blob import BlobServiceClient
 
-from app.storage import ChatHistoryManager
+from agent_framework import ChatMessage, Role
+from opsagent.workflows.triage_workflow import create_triage_workflow, WorkflowInput
+from opsagent.ui.app.storage import ChatHistoryManager
 
 # Load environment variables from .env file
 load_dotenv()
@@ -23,7 +26,7 @@ load_dotenv()
 # ----------------------------------------------------------------------------
 # Flask App Configuration
 # ----------------------------------------------------------------------------
-app = Flask(__name__, static_folder='app/static')
+app = Flask(__name__, static_folder='opsagent/ui/app/static')
 CORS(app)
 
 DEFAULT_MODEL = "gpt-4o-mini"
@@ -91,6 +94,12 @@ else:
 
 
 # ----------------------------------------------------------------------------
+# Initialize Workflow
+# ----------------------------------------------------------------------------
+WORKFLOW = create_triage_workflow()
+
+
+# ----------------------------------------------------------------------------
 # Authentication Helper
 # ----------------------------------------------------------------------------
 def get_user_info() -> Dict[str, str]:
@@ -143,10 +152,38 @@ def title_from_first_user_message(msg: str) -> str:
     return (trimmed[:28] + "…") if len(trimmed) > 29 else (trimmed if trimmed else "New chat")
 
 
-def call_llm_stub(model: str, messages: List[Dict]) -> str:
-    """Placeholder LLM: echo the user's last message for the chosen model."""
-    user_last = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "Hello!")
-    return f"(Stubbed {model}) You said: {user_last}"
+def convert_messages(messages: List[Dict]) -> List[ChatMessage]:
+    """Convert Flask message format to ChatMessage objects."""
+    result = []
+    for msg in messages:
+        role = Role.USER if msg["role"] == "user" else Role.ASSISTANT
+        result.append(ChatMessage(role, text=msg["content"]))
+    return result
+
+
+def call_llm(model: str, messages: List[Dict]) -> str:
+    """Execute the triage workflow with conversation history."""
+    try:
+        chat_messages = convert_messages(messages)
+        input_data = WorkflowInput(messages=chat_messages)
+
+        # Run async workflow synchronously
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(WORKFLOW.run(input_data))
+        finally:
+            loop.close()
+
+        # Extract output
+        outputs = result.get_outputs()
+        if outputs:
+            return outputs[0]
+        return "No response from workflow"
+
+    except Exception as e:
+        logger.error(f"Workflow execution failed: {e}")
+        return f"Error: Unable to process request. {str(e)}"
 
 
 def build_llm_messages(messages: List[Dict]) -> List[Dict]:
@@ -171,7 +208,7 @@ def models_list() -> List[str]:
 @app.route('/')
 def index():
     """Serve the main frontend HTML page."""
-    return send_from_directory('app/static', 'index.html')
+    return send_from_directory('opsagent/ui/app/static', 'index.html')
 
 
 # ----------------------------------------------------------------------------
@@ -328,8 +365,8 @@ def api_send_message(conversation_id):
     if convo['title'] == 'New chat':
         convo['title'] = title_from_first_user_message(user_message)
 
-    # Call LLM stub
-    reply = call_llm_stub(convo['model'], build_llm_messages(convo['messages']))
+    # Call workflow
+    reply = call_llm(convo['model'], build_llm_messages(convo['messages']))
 
     # Append assistant message
     convo['messages'].append({

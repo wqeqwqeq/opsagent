@@ -54,17 +54,36 @@ class TriageResult:
     original_query: str
 
 
+# === Input type for workflow ===
+@dataclass
+class WorkflowInput:
+    """Input for the triage workflow with full conversation history."""
+
+    messages: list[ChatMessage]  # Full conversation history
+
+
 # === Executors ===
 
 
 @executor(id="store_query")
-async def store_query(query: str, ctx: WorkflowContext[AgentExecutorRequest]) -> None:
-    """Store original query and send to triage agent."""
-    await ctx.set_shared_state("original_query", query)
+async def store_query(
+    input: WorkflowInput, ctx: WorkflowContext[AgentExecutorRequest]
+) -> None:
+    """Store conversation history and send to triage agent."""
+    # Store the full conversation history for reference
+    await ctx.set_shared_state("conversation_history", input.messages)
+
+    # Extract latest user query for original_query (used in TriageResult)
+    latest_query = ""
+    for msg in reversed(input.messages):
+        if msg.role == Role.USER:
+            latest_query = msg.text
+            break
+    await ctx.set_shared_state("original_query", latest_query)
+
+    # Send full history to triage agent
     await ctx.send_message(
-        AgentExecutorRequest(
-            messages=[ChatMessage(Role.USER, text=query)], should_respond=True
-        )
+        AgentExecutorRequest(messages=input.messages, should_respond=True)
     )
 
 
