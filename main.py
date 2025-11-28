@@ -2,10 +2,7 @@ import logging
 
 from agent_framework.devui import serve
 
-from opsagent.agents.log_analytics_agent import create_log_analytics_agent
-from opsagent.agents.service_health_agent import create_service_health_agent
-from opsagent.agents.servicenow_agent import create_servicenow_agent
-import os 
+from opsagent.workflows.triage_workflow import create_triage_workflow
 
 
 def main():
@@ -14,23 +11,23 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     logger = logging.getLogger(__name__)
 
-    logger.info("Creating Ops Agents...")
+    logger.info("Creating Triage Workflow...")
 
-    # Create all 3 agents (credentials loaded from environment via pydantic-settings)
-    servicenow_agent = create_servicenow_agent()
-    log_analytics_agent = create_log_analytics_agent()
-    service_health_agent = create_service_health_agent()
+    # Create the triage workflow with all specialized agents
+    workflow = create_triage_workflow()
 
     logger.info("Starting DevUI server...")
     logger.info("Available at: http://localhost:8090")
-    logger.info("Agents:")
-    logger.info("  - servicenow-agent")
-    logger.info("  - log-analytics-agent")
-    logger.info("  - service-health-agent")
-    # os.environ["ENABLE_OTEL"]="true"    
-    # # Launch DevUI with all agents for individual testing
+    logger.info("Workflow: triage-workflow")
+    logger.info("  Routes queries to:")
+    logger.info("    - servicenow-agent")
+    logger.info("    - log-analytics-agent")
+    logger.info("    - service-health-agent")
+    import os
+    os.environ['ENABLE_OTEL']='true'
+    # Launch DevUI with the workflow
     serve(
-        entities=[servicenow_agent, log_analytics_agent, service_health_agent],
+        entities=[workflow],
         port=8090,
         auto_open=True,
     )
