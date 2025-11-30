@@ -363,6 +363,10 @@ def api_thinking_stream(conversation_id):
         _active_streams[conversation_id] = stream
         stream.start()
 
+        # Send initial comment to establish connection and flush buffers
+        # This helps with Azure App Service proxy buffering
+        yield ": connected\n\n"
+
         try:
             # Yield events as they arrive (blocking)
             for event in stream.iter_events():
@@ -376,9 +380,15 @@ def api_thinking_stream(conversation_id):
         stream_with_context(generate()),
         mimetype='text/event-stream',
         headers={
-            'Cache-Control': 'no-cache',
-            'X-Accel-Buffering': 'no',
-            'Connection': 'keep-alive'
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            'X-Accel-Buffering': 'no',  # Nginx
+            'X-Content-Type-Options': 'nosniff',
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            # Azure App Service specific - disable ARR buffering
+            'X-ARR-Disable-Session-Affinity': 'true',
+            'Transfer-Encoding': 'chunked',
         }
     )
 

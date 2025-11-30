@@ -30,7 +30,7 @@ param subnetAddressPrefix string
 var resourcePrefixShort = replace(resourcePrefix, '-', '')
 var keyVaultName = '${resourcePrefixShort}kv4'
 var postgresServerName = '${resourcePrefix}-postgres'
-
+var AppSubnetName = 'appServiceSubnet'
 
 
 // https://docs.microsoft.com/en-us/azure/templates/microsoft.managedidentity/userassignedidentities?t…
@@ -156,7 +156,7 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2023-11-01' = {
     }
     subnets: [
       {
-        name: 'appServiceSubnet'
+        name: AppSubnetName
         properties: {
           addressPrefix: subnetAddressPrefix
           delegations: [
@@ -200,6 +200,8 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
       // CHANGE: Use Docker container instead of Python runtime
       linuxFxVersion: 'DOCKER|${containerRegistry.properties.loginServer}/${resourcePrefix}-app:latest'
       alwaysOn: true
+      // Enable WebSockets (also helps with SSE long-lived connections)
+      webSocketsEnabled: true
       // Configure ACR authentication using managed identity
       acrUseManagedIdentityCreds: true  // FIXED: Was false, should be true
       acrUserManagedIdentityID: userAssignedIdentity.properties.clientId
@@ -459,7 +461,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
       defaultAction: 'Deny'
       virtualNetworkRules: [
         {
-          id: virtualNetwork.properties.subnets[0].id
+          id: '${virtualNetwork.id}/subnets/${AppSubnetName}'
           action: 'Allow'
         }
       ]
