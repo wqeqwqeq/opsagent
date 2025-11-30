@@ -12,6 +12,9 @@ let currentView = 'chat';  // 'chat', 'video-gallery', 'video-player'
 let currentVideoUrl = null;
 let currentVideoTitle = null;
 
+// Thinking events storage for flyout panel
+let currentThinkingEvents = [];
+
 // ============================================================
 // API Client Functions
 // ============================================================
@@ -797,6 +800,12 @@ function showThinkingIndicator() {
     const container = document.querySelector('.messages-container');
     if (!container) return;
 
+    // Clear previous thinking events
+    currentThinkingEvents = [];
+
+    // Close any open flyout
+    closeThinkingFlyout();
+
     const thinkingDiv = document.createElement('div');
     thinkingDiv.className = 'message assistant thinking-message';
     thinkingDiv.innerHTML = `
@@ -820,6 +829,9 @@ function appendThinkingEvent(message) {
     const indicator = document.querySelector('.thinking-indicator');
     if (!indicator) return;
 
+    // Store event for later flyout display
+    currentThinkingEvents.push(message.trim());
+
     const eventDiv = document.createElement('div');
     eventDiv.className = 'thinking-event';
     eventDiv.textContent = message.trim();
@@ -830,13 +842,31 @@ function appendThinkingEvent(message) {
     chatCanvas.scrollTop = chatCanvas.scrollHeight;
 }
 
-// Replace thinking indicator with actual response
+// Replace thinking indicator with actual response, keeping collapsed thinking
 function replaceThinkingWithResponse(content) {
     const thinkingMsg = document.querySelector('.thinking-message');
     if (thinkingMsg) {
         thinkingMsg.classList.remove('thinking-message');
+
+        // Keep the collapsed thinking indicator if there were events
+        const thinkingCollapsed = currentThinkingEvents.length > 0 ? `
+            <div class="thinking-collapsed-wrapper">
+                <div class="thinking-collapsed" onclick="toggleThinkingFlyout(this)">
+                    <svg class="thinking-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M12 6v6l4 2"></path>
+                    </svg>
+                    <span>Thinking finished</span>
+                    <svg class="thinking-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </div>
+            </div>
+        ` : '';
+
         thinkingMsg.innerHTML = `
             <div class="message-role">Assistant</div>
+            ${thinkingCollapsed}
             <div class="message-content">${escapeHtml(content)}</div>
         `;
     }
@@ -844,6 +874,67 @@ function replaceThinkingWithResponse(content) {
     // Scroll to bottom
     const chatCanvas = document.getElementById('chat-canvas');
     chatCanvas.scrollTop = chatCanvas.scrollHeight;
+}
+
+// Toggle thinking flyout panel (full-height right sidebar)
+function toggleThinkingFlyout(element) {
+    // Close existing flyout if open
+    const existing = document.querySelector('.thinking-flyout');
+    const mainArea = document.querySelector('.main-area');
+
+    if (existing) {
+        existing.remove();
+        mainArea.classList.remove('flyout-open');
+        // Update chevron direction
+        document.querySelectorAll('.thinking-collapsed').forEach(el => {
+            el.classList.remove('expanded');
+        });
+        return;
+    }
+
+    // Mark main area as having flyout open
+    mainArea.classList.add('flyout-open');
+
+    // Mark this one as expanded
+    if (element) {
+        element.classList.add('expanded');
+    }
+
+    // Create flyout - append to main-area for sidebar layout
+    const flyout = document.createElement('div');
+    flyout.className = 'thinking-flyout';
+    flyout.innerHTML = `
+        <div class="flyout-header">
+            <span>Thinking</span>
+            <button class="flyout-close" onclick="closeThinkingFlyout()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="flyout-content">
+            ${currentThinkingEvents.map(e => `<div class="flyout-event">${escapeHtml(e)}</div>`).join('')}
+        </div>
+    `;
+    mainArea.appendChild(flyout);
+}
+
+// Close thinking flyout panel
+function closeThinkingFlyout() {
+    const flyout = document.querySelector('.thinking-flyout');
+    if (flyout) {
+        flyout.remove();
+    }
+    // Remove flyout-open class from main area
+    const mainArea = document.querySelector('.main-area');
+    if (mainArea) {
+        mainArea.classList.remove('flyout-open');
+    }
+    // Reset chevron direction
+    document.querySelectorAll('.thinking-collapsed').forEach(el => {
+        el.classList.remove('expanded');
+    });
 }
 
 // Transition from welcome screen to conversation view
