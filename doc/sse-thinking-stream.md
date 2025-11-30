@@ -88,7 +88,60 @@ Frontend                          Flask                           Middleware
 
 ## Deployment Issues & Solutions
 
-### Issue 1: Docker Container - Multi-Worker Problem
+### Issue 1: First Message Missing Thinking Events (Race Condition)
+
+**Symptom**: First message in a new conversation shows no thinking events, but subsequent messages work fine.
+
+**Root Cause**: Race condition in the frontend. When sending the first message:
+
+```
+Timeline (BROKEN):
+1. await createConversation()     <-- Takes time (HTTP request)
+2. new EventSource(...)           <-- SSE connection starts
+3. await sendMessage(...)         <-- Sent immediately!
+4. Workflow starts emitting events
+5. SSE connection finally ready   <-- TOO LATE! Events already emitted
+```
+
+The SSE connection hasn't fully established before the workflow starts emitting events. Subsequent messages work because `createConversation()` is skipped.
+
+**Solution**: Wait for SSE `onopen` event before sending the message.
+
+```javascript
+// script.js - Wait for SSE to be ready
+eventSource = new EventSource(`${API_BASE}/api/conversations/${id}/thinking`);
+
+await new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(), 3000); // 3s timeout
+
+    eventSource.onopen = () => {
+        clearTimeout(timeout);
+        setTimeout(resolve, 100); // Small delay for server readiness
+    };
+
+    eventSource.onerror = () => {
+        clearTimeout(timeout);
+        resolve(); // Continue without SSE on error
+    };
+});
+
+// NOW send the message
+const response = await sendMessage(id, message);
+```
+
+```
+Timeline (FIXED):
+1. await createConversation()
+2. new EventSource(...)
+3. await SSE onopen              <-- WAIT for connection
+4. await sendMessage(...)        <-- Now safe to send
+5. Workflow emits events
+6. SSE receives all events       <-- Works!
+```
+
+---
+
+### Issue 2: Docker Container - Multi-Worker Problem (Gunicorn)
 
 **Symptom**: SSE works locally with `uv run flask_app.py` but not in Docker container.
 
@@ -123,7 +176,7 @@ CMD ["uv", "run", "gunicorn", "-b", "0.0.0.0:8000", "-w", "1", "-k", "gevent", "
 
 ---
 
-### Issue 2: Azure App Service - Response Buffering
+### Issue 3: Azure App Service - Response Buffering
 
 **Symptom**: SSE works in local Docker but not on Azure App Service.
 
@@ -230,6 +283,7 @@ Clickable indicator that opens flyout:
 
 | Issue | Check |
 |-------|-------|
+| No events on first message only | Race condition - ensure SSE `onopen` is awaited before `sendMessage()` |
 | No events in local dev | Is middleware added to all agents? |
 | No events in Docker | Is Gunicorn using `-w 1 -k gevent`? |
 | No events on Azure | Check headers, WebSockets enabled, ARR settings |

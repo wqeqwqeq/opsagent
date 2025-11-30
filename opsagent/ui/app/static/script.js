@@ -998,10 +998,31 @@ async function handleSendMessage() {
         // 2. Show thinking indicator
         showThinkingIndicator();
 
-        // 3. Start SSE connection for thinking events BEFORE sending message
+        // 3. Start SSE connection and WAIT for it to be ready before sending message
+        // This fixes a race condition where the first message's thinking events are lost
+        // because the SSE connection isn't established before the workflow starts
         eventSource = new EventSource(
             `${API_BASE}/api/conversations/${currentConversationId}/thinking`
         );
+
+        // Wait for SSE connection to be ready (receives ": connected" comment from server)
+        await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                resolve(); // Proceed anyway after timeout
+            }, 3000); // 3 second timeout
+
+            eventSource.onopen = () => {
+                clearTimeout(timeout);
+                // Small delay to ensure server-side stream is fully ready
+                setTimeout(resolve, 100);
+            };
+
+            eventSource.onerror = (err) => {
+                clearTimeout(timeout);
+                // Don't reject - just resolve and continue without SSE
+                resolve();
+            };
+        });
 
         eventSource.onmessage = (event) => {
             appendThinkingEvent(event.data);
