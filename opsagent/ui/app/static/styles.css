@@ -1269,3 +1269,101 @@ details[open] .chevron-icon {
         max-height: 300px;
     }
 }
+
+/* --- Markdown Styles for Assistant Messages --- */
+.message.assistant .message-content h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem 0;
+    color: var(--text-primary);
+}
+
+.message.assistant .message-content h2:first-child {
+    margin-top: 0;
+}
+
+.message.assistant .message-content h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0.75rem 0 0.5rem 0;
+    color: var(--text-primary);
+}
+
+.message.assistant .message-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+}
+
+.message.assistant .message-content th,
+.message.assistant .message-content td {
+    border: 1px solid #e5e5e5;
+    padding: 8px 12px;
+    text-align: left;
+}
+
+.message.assistant .message-content th {
+    background: #f5f5f5;
+    font-weight: 600;
+}
+
+.message.assistant .message-content code {
+    background: #f0f0f0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 0.85em;
+}
+
+.message.assistant .message-content pre {
+    background: #f5f5f5;
+    padding: 12px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+}
+
+.message.assistant .message-content pre code {
+    background: transparent;
+    padding: 0;
+}
+
+.message.assistant .message-content ul,
+.message.assistant .message-content ol {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.message.assistant .message-content li {
+    margin-bottom: 0.25rem;
+}
+
+.message.assistant .message-content hr {
+    border: none;
+    border-top: 1px solid #e5e5e5;
+    margin: 1.5rem 0;
+}
+
+.message.assistant .message-content p {
+    margin: 0.5rem 0;
+}
+
+.message.assistant .message-content p:first-child {
+    margin-top: 0;
+}
+
+.message.assistant .message-content p:last-child {
+    margin-bottom: 0;
+}
+
+.message.assistant .message-content strong {
+    font-weight: 600;
+}
+
+.message.assistant .message-content blockquote {
+    border-left: 3px solid #e5e5e5;
+    padding-left: 1rem;
+    margin: 0.5rem 0;
+    color: var(--text-secondary);
+}

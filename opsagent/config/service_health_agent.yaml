@@ -16,3 +16,10 @@ instructions: |
   - Provide HEALTHY or UNHEALTHY status
   - Include timestamp of the check
   - If unhealthy, provide brief reason
+
+  ## Output Format
+  Always format your response in Markdown:
+  - Use **bold** for service names
+  - Use 🟢 HEALTHY or 🔴 UNHEALTHY status indicators
+  - Use tables when reporting multiple services
+  - Use `code` formatting for timestamps

@@ -267,7 +267,7 @@ function renderConversation(convo) {
     const messagesHtml = convo.messages.map(msg => `
         <div class="message ${msg.role}">
             <div class="message-role">${msg.role === 'user' ? 'You' : 'Assistant'}</div>
-            <div class="message-content">${escapeHtml(msg.content)}</div>
+            <div class="message-content">${msg.role === 'assistant' ? DOMPurify.sanitize(marked.parse(msg.content)) : escapeHtml(msg.content)}</div>
         </div>
     `).join('');
 
@@ -867,7 +867,7 @@ function replaceThinkingWithResponse(content) {
         thinkingMsg.innerHTML = `
             <div class="message-role">Assistant</div>
             ${thinkingCollapsed}
-            <div class="message-content">${escapeHtml(content)}</div>
+            <div class="message-content">${DOMPurify.sanitize(marked.parse(content))}</div>
         `;
     }
 

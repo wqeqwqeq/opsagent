@@ -14,3 +14,10 @@ instructions: |
   - Present data clearly with ticket numbers prominent
   - Include status and priority information
   - If no results, explain possible reasons
+
+  ## Output Format
+  Always format your response in Markdown:
+  - Use **bold** for ticket numbers (e.g., **CHG0012345**)
+  - Use tables for listing multiple records
+  - Use bullet points for details
+  - Use `code` formatting for technical IDs

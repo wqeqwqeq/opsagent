@@ -15,3 +15,10 @@ instructions: |
   - Include timestamps in UTC format
   - Clearly indicate status: Succeeded, Failed, In Progress, Cancelled
   - For failures, include error messages when available
+
+  ## Output Format
+  Always format your response in Markdown:
+  - Use **bold** for pipeline names
+  - Use tables for listing multiple pipeline runs
+  - Use `code` formatting for run IDs and timestamps
+  - Use ✅ for Succeeded, ❌ for Failed, ⏳ for In Progress
