@@ -19,9 +19,15 @@ from azure.storage.blob import BlobServiceClient
 from agent_framework import ChatMessage, Role
 from opsagent.workflows.triage_workflow import create_triage_workflow, WorkflowInput
 from opsagent.ui.app.storage import ChatHistoryManager
+from agent_framework.observability import setup_observability
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Setup OpenTelemetry observability (traces to Application Insights)
+setup_observability(
+     enable_sensitive_data=True
+)
 
 # ----------------------------------------------------------------------------
 # Flask App Configuration
@@ -439,3 +445,4 @@ def api_list_videos():
 if __name__ == '__main__':
     # Development server (use Gunicorn for production)
     app.run(host='0.0.0.0', port=8000, debug=True)
+
