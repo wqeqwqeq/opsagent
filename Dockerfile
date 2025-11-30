@@ -19,5 +19,7 @@ COPY .env .
 # Expose port (documentation only - actual port set via WEBSITES_PORT)
 EXPOSE 8000
 
-# Start Flask application using Gunicorn
-CMD ["uv", "run", "gunicorn", "-b", "0.0.0.0:8000", "-w", "4", "flask_app:app"]
+# Start Flask application using Gunicorn with gevent worker
+# -w 1: Single worker (required for SSE - _active_streams dict must be shared)
+# -k gevent: Async worker for efficient concurrent SSE connections
+CMD ["uv", "run", "gunicorn", "-b", "0.0.0.0:8000", "-w", "1", "-k", "gevent", "flask_app:app"]

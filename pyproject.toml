@@ -14,6 +14,7 @@ dependencies = [
     "flask>=3.0.0",
     "flask-cors>=4.0.0",
     "gunicorn>=21.2.0",
+    "gevent>=24.2.1",
     # Storage backends
     "psycopg2-binary==2.9.9",
     "redis>=5.0.0",
