@@ -1061,18 +1061,45 @@ details[open] .chevron-icon {
 /* --- Thinking Indicator --- */
 .thinking-indicator {
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 0;
+}
+
+.thinking-header {
+    display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 0;
+    gap: 2px;
     color: var(--text-secondary);
     font-size: 0.95rem;
 }
 
-.thinking-indicator .thinking-text {
+.thinking-text {
     animation: pulse 1.5s ease-in-out infinite;
+}
+
+.thinking-dots::after {
+    content: '';
+    animation: dots 1.5s infinite;
 }
 
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
+}
+
+@keyframes dots {
+    0%, 20% { content: '.'; }
+    40% { content: '..'; }
+    60%, 100% { content: '...'; }
+}
+
+.thinking-event {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 0.85rem;
+    color: #888;
+    padding-left: 12px;
+    border-left: 2px solid #e0e0e0;
+    margin-left: 4px;
+    line-height: 1.6;
 }

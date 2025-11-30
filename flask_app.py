@@ -10,16 +10,17 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, List
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
 from dotenv import load_dotenv
 from azure.identity import DefaultAzureCredential, AzureCliCredential
 from azure.storage.blob import BlobServiceClient
 
 from agent_framework import ChatMessage, Role
+from agent_framework.observability import setup_observability
 from opsagent.workflows.triage_workflow import create_triage_workflow, WorkflowInput
 from opsagent.ui.app.storage import ChatHistoryManager
-from agent_framework.observability import setup_observability
+from opsagent.observability import EventStream, set_current_stream
 
 # Load environment variables from .env file
 load_dotenv()
@@ -103,6 +104,12 @@ else:
 # Initialize Workflow
 # ----------------------------------------------------------------------------
 WORKFLOW = create_triage_workflow()
+
+# ----------------------------------------------------------------------------
+# Thinking Stream Management
+# ----------------------------------------------------------------------------
+# Store active EventStream instances keyed by conversation_id
+_active_streams: Dict[str, EventStream] = {}
 
 
 # ----------------------------------------------------------------------------
@@ -343,6 +350,39 @@ def api_delete_conversation(conversation_id):
     return '', 204
 
 
+@app.route('/api/conversations/<conversation_id>/thinking')
+def api_thinking_stream(conversation_id):
+    """SSE endpoint for streaming thinking events during workflow execution.
+
+    This endpoint should be connected BEFORE sending a message.
+    Events are pushed by middleware during workflow.run() execution.
+    """
+    def generate():
+        # Create and register stream for this conversation
+        stream = EventStream()
+        _active_streams[conversation_id] = stream
+        stream.start()
+
+        try:
+            # Yield events as they arrive (blocking)
+            for event in stream.iter_events():
+                yield f"data: {event}\n\n"
+        finally:
+            # Cleanup when stream ends or client disconnects
+            if conversation_id in _active_streams:
+                del _active_streams[conversation_id]
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive'
+        }
+    )
+
+
 @app.route('/api/conversations/<conversation_id>/messages', methods=['POST'])
 def api_send_message(conversation_id):
     """Send a message to a conversation and get LLM response."""
@@ -371,8 +411,20 @@ def api_send_message(conversation_id):
     if convo['title'] == 'New chat':
         convo['title'] = title_from_first_user_message(user_message)
 
-    # Call workflow
-    reply = call_llm(convo['model'], build_llm_messages(convo['messages']))
+    # Get the thinking stream for this conversation (if frontend connected)
+    stream = _active_streams.get(conversation_id)
+
+    # Set as current stream for middleware to use
+    set_current_stream(stream)
+
+    try:
+        # Call workflow (middleware will emit events to stream)
+        reply = call_llm(convo['model'], build_llm_messages(convo['messages']))
+    finally:
+        # Stop the stream and clear current stream
+        if stream:
+            stream.stop()
+        set_current_stream(None)
 
     # Append assistant message
     convo['messages'].append({

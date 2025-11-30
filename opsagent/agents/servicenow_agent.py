@@ -3,6 +3,10 @@ from pathlib import Path
 from agent_framework import ChatAgent
 from agent_framework.azure import AzureOpenAIChatClient
 
+from ..observability import (
+    observability_agent_middleware,
+    observability_function_middleware,
+)
 from ..tools.servicenow_tools import (
     get_change_request,
     get_incident,
@@ -31,4 +35,8 @@ def create_servicenow_agent() -> ChatAgent:
         instructions=config.instructions,
         chat_client=chat_client,
         tools=[list_change_requests, get_change_request, list_incidents, get_incident],
+        middleware=[
+            observability_agent_middleware,
+            observability_function_middleware,
+        ],
     )

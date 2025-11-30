@@ -5,6 +5,10 @@ from agent_framework import ChatAgent
 from agent_framework.azure import AzureOpenAIChatClient
 from pydantic import BaseModel
 
+from ..observability import (
+    observability_agent_middleware,
+    observability_function_middleware,
+)
 from ..utils.config_loader import load_agent_config
 from ..utils.settings import AzureOpenAISettings
 
@@ -42,4 +46,8 @@ def create_triage_agent() -> ChatAgent:
         instructions=config.instructions,
         chat_client=chat_client,
         response_format=TriageOutput,
+        middleware=[
+            observability_agent_middleware,
+            observability_function_middleware,
+        ],
     )

@@ -792,7 +792,7 @@ function appendUserMessage(message) {
     chatCanvas.scrollTop = chatCanvas.scrollHeight;
 }
 
-// Show thinking indicator
+// Show thinking indicator with container for streaming events
 function showThinkingIndicator() {
     const container = document.querySelector('.messages-container');
     if (!container) return;
@@ -802,10 +802,28 @@ function showThinkingIndicator() {
     thinkingDiv.innerHTML = `
         <div class="message-role">Assistant</div>
         <div class="thinking-indicator">
-            <span class="thinking-text">Thinking...</span>
+            <div class="thinking-header">
+                <span class="thinking-text">Thinking</span>
+                <span class="thinking-dots"></span>
+            </div>
         </div>
     `;
     container.appendChild(thinkingDiv);
+
+    // Scroll to bottom
+    const chatCanvas = document.getElementById('chat-canvas');
+    chatCanvas.scrollTop = chatCanvas.scrollHeight;
+}
+
+// Append a thinking event to the indicator
+function appendThinkingEvent(message) {
+    const indicator = document.querySelector('.thinking-indicator');
+    if (!indicator) return;
+
+    const eventDiv = document.createElement('div');
+    eventDiv.className = 'thinking-event';
+    eventDiv.textContent = message.trim();
+    indicator.appendChild(eventDiv);
 
     // Scroll to bottom
     const chatCanvas = document.getElementById('chat-canvas');
@@ -869,6 +887,8 @@ async function handleSendMessage() {
     // Check if we're on the welcome screen (no messages container)
     const isOnWelcomeScreen = !document.querySelector('.messages-container');
 
+    let eventSource = null;
+
     try {
         // Create new chat if needed
         if (!currentConversationId) {
@@ -887,20 +907,47 @@ async function handleSendMessage() {
         // 2. Show thinking indicator
         showThinkingIndicator();
 
-        // 3. Send message and wait for response
+        // 3. Start SSE connection for thinking events BEFORE sending message
+        eventSource = new EventSource(
+            `${API_BASE}/api/conversations/${currentConversationId}/thinking`
+        );
+
+        eventSource.onmessage = (event) => {
+            appendThinkingEvent(event.data);
+        };
+
+        eventSource.onerror = () => {
+            // Connection closed or error - just close it
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+        };
+
+        // 4. Send message and wait for response (middleware emits events during this)
         const response = await sendMessage(currentConversationId, message);
 
-        // 4. Get the assistant's response from the API response
+        // 5. Close SSE connection
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+        }
+
+        // 6. Get the assistant's response from the API response
         const assistantContent = response.assistant_message.content;
 
-        // 5. Replace thinking with actual response
+        // 7. Replace thinking with actual response
         replaceThinkingWithResponse(assistantContent);
 
-        // 6. Update sidebar (conversation moved to top, title may have changed)
+        // 8. Update sidebar (conversation moved to top, title may have changed)
         await fetchConversations();
         renderConversationsList();
     } catch (error) {
         console.error('Error sending message:', error);
+        // Close SSE if still open
+        if (eventSource) {
+            eventSource.close();
+        }
         // Remove thinking indicator and show error
         const thinkingMsg = document.querySelector('.thinking-message');
         if (thinkingMsg) thinkingMsg.remove();

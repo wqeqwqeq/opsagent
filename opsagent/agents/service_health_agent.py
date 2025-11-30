@@ -3,6 +3,10 @@ from pathlib import Path
 from agent_framework import ChatAgent
 from agent_framework.azure import AzureOpenAIChatClient
 
+from ..observability import (
+    observability_agent_middleware,
+    observability_function_middleware,
+)
 from ..tools.service_health_tools import (
     check_azure_service_health,
     check_databricks_health,
@@ -30,4 +34,8 @@ def create_service_health_agent() -> ChatAgent:
         instructions=config.instructions,
         chat_client=chat_client,
         tools=[check_databricks_health, check_snowflake_health, check_azure_service_health],
+        middleware=[
+            observability_agent_middleware,
+            observability_function_middleware,
+        ],
     )
