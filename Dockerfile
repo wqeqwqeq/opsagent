@@ -2,6 +2,14 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Optional: minimal OS deps for SSL & networking (usually already fine)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install uv package manager and Azure CLI (via pip)
+RUN pip install --no-cache-dir azure-cli
+
 # Install uv package manager
 RUN pip install --no-cache-dir uv
 

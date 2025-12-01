@@ -21,6 +21,7 @@ from agent_framework.observability import setup_observability
 from opsagent.workflows.triage_workflow import create_triage_workflow, WorkflowInput
 from opsagent.ui.app.storage import ChatHistoryManager
 from opsagent.observability import EventStream, set_current_stream
+from opsagent.utils import AKV
 
 # Load environment variables from .env file
 load_dotenv()
@@ -46,7 +47,13 @@ logger = logging.getLogger(__name__)
 # ----------------------------------------------------------------------------
 RESOURCE_PREFIX = os.getenv('RESOURCE_PREFIX', 'stanley-dev-ui')
 STORAGE_ACCOUNT_NAME = f"{RESOURCE_PREFIX.replace('-', '')}stg"
+KEY_VAULT_NAME = f"{RESOURCE_PREFIX.replace('-', '')}kv"
 CONTAINER_NAME = 'standup-recordings'
+
+# ----------------------------------------------------------------------------
+# Initialize Azure Key Vault Client
+# ----------------------------------------------------------------------------
+akv = AKV(vault_name =  KEY_VAULT_NAME)
 
 # ----------------------------------------------------------------------------
 # Initialize Chat History Manager
@@ -55,18 +62,18 @@ CHAT_HISTORY_MODE = os.getenv("CHAT_HISTORY_MODE", "local")
 CONVERSATION_HISTORY_DAYS = int(os.getenv("CONVERSATION_HISTORY_DAYS", "7"))
 
 if CHAT_HISTORY_MODE in ["redis", "local_redis"]:
-    # Build PostgreSQL connection string from environment variables
-    host = os.getenv("POSTGRES_HOST", "localhost")
+    # Build PostgreSQL connection string from RESOURCE_PREFIX
+    postgres_host = f"{RESOURCE_PREFIX}-postgres.postgres.database.azure.com"
     port = os.getenv("POSTGRES_PORT", "5432")
     user = os.getenv("POSTGRES_ADMIN_LOGIN", "pgadmin")
-    password = os.getenv("POSTGRES_ADMIN_PASSWORD", "")
+    password = akv.get_secret("POSTGRES-ADMIN-PASSWORD") or ""
     database = os.getenv("POSTGRES_DATABASE", "chat_history")
     sslmode = os.getenv("POSTGRES_SSLMODE", "require")
-    connection_string = f"postgresql://{user}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
+    connection_string = f"postgresql://{user}:{password}@{postgres_host}:{port}/{database}?sslmode={sslmode}"
 
-    # Build Redis connection parameters
-    redis_host = os.getenv("REDIS_HOST", "localhost")
-    redis_password = os.getenv("REDIS_PASSWORD", "")
+    # Build Redis connection parameters from RESOURCE_PREFIX
+    redis_host = f"{RESOURCE_PREFIX}-redis.redis.cache.windows.net"
+    redis_password = akv.get_secret("REDIS-PASSWORD") or ""
     redis_port = int(os.getenv("REDIS_PORT", "6380"))
     redis_ssl = os.getenv("REDIS_SSL", "true").lower() == "true"
     redis_ttl = int(os.getenv("REDIS_TTL_SECONDS", "1800"))
@@ -82,14 +89,14 @@ if CHAT_HISTORY_MODE in ["redis", "local_redis"]:
         history_days=CONVERSATION_HISTORY_DAYS
     )
 elif CHAT_HISTORY_MODE == "postgres" or CHAT_HISTORY_MODE == "local_psql":
-    # Build PostgreSQL connection string from environment variables
-    host = os.getenv("POSTGRES_HOST", "localhost")
+    # Build PostgreSQL connection string from RESOURCE_PREFIX
+    postgres_host = f"{RESOURCE_PREFIX}-postgres.postgres.database.azure.com"
     port = os.getenv("POSTGRES_PORT", "5432")
     user = os.getenv("POSTGRES_ADMIN_LOGIN", "pgadmin")
-    password = os.getenv("POSTGRES_ADMIN_PASSWORD", "")
+    password = akv.get_secret("POSTGRES-ADMIN-PASSWORD") or ""
     database = os.getenv("POSTGRES_DATABASE", "chat_history")
     sslmode = os.getenv("POSTGRES_SSLMODE", "require")
-    connection_string = f"postgresql://{user}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
+    connection_string = f"postgresql://{user}:{password}@{postgres_host}:{port}/{database}?sslmode={sslmode}"
 
     HISTORY = ChatHistoryManager(
         mode="postgres",
