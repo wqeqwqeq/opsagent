@@ -5,11 +5,12 @@
 # Deploys Azure infrastructure using Bicep templates
 #
 # Usage:
-#   ./deploy_infra.sh rg [--what-if]         - Deploy resource group only
-#   ./deploy_infra.sh app [--what-if]        - Deploy full application infrastructure
+#   ./deploy_infra.sh rg [--what-if]                              - Deploy resource group only
+#   ./deploy_infra.sh app --postgres-password <pwd> [--what-if]   - Deploy full application infrastructure
 #
 # Options:
-#   --what-if    Preview changes without deploying (dry run)
+#   --postgres-password <password>  PostgreSQL admin password (required for app mode)
+#   --what-if                       Preview changes without deploying (dry run)
 #
 # Prerequisites:
 #   - Azure CLI installed and logged in (az login)
@@ -26,22 +27,38 @@ WHAT_IF=false
 if [ -z "$MODE" ]; then
     echo "❌ Error: Mode not specified"
     echo ""
-    echo "Usage: ./deploy_infra.sh [rg|app] [--what-if]"
+    echo "Usage: ./deploy_infra.sh [rg|app] [options]"
     echo ""
     echo "Modes:"
     echo "  rg   - Deploy resource group only (rg.bicep)"
     echo "  app  - Deploy full infrastructure (simplified.bicep)"
     echo ""
     echo "Options:"
-    echo "  --what-if  - Preview changes without deploying (dry run)"
+    echo "  --postgres-password <password>  PostgreSQL admin password (required for app mode)"
+    echo "  --what-if                       Preview changes without deploying (dry run)"
     echo ""
     exit 1
 fi
 
-# Check for --what-if flag
-if [ "${2:-}" = "--what-if" ]; then
-    WHAT_IF=true
-fi
+# Parse remaining arguments
+POSTGRES_ADMIN_PASSWORD=""
+shift  # Remove MODE from args
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --what-if)
+            WHAT_IF=true
+            shift
+            ;;
+        --postgres-password)
+            POSTGRES_ADMIN_PASSWORD="$2"
+            shift 2
+            ;;
+        *)
+            echo "❌ Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
 # Get script directory and load environment variables
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -68,6 +85,14 @@ if [ "$MODE" = "rg" ]; then
         exit 1
     fi
 elif [ "$MODE" = "app" ]; then
+    # Check --postgres-password is provided
+    if [ -z "$POSTGRES_ADMIN_PASSWORD" ]; then
+        echo "❌ Error: --postgres-password is required for app deployment"
+        echo ""
+        echo "Usage: ./deploy_infra.sh app --postgres-password <password> [--what-if]"
+        exit 1
+    fi
+
     REQUIRED_VARS=(
         "AZURE_SUBSCRIPTION_ID"
         "AZURE_RESOURCE_GROUP"
@@ -76,7 +101,6 @@ elif [ "$MODE" = "app" ]; then
         "APP_SERVICE_SKU"
         "TOKEN_PROVIDER_APP_ID"
         "POSTGRES_ADMIN_LOGIN"
-        "POSTGRES_ADMIN_PASSWORD"
         "POSTGRES_SKU"
         "POSTGRES_STORAGE_GB"
         "POSTGRES_DATABASE"

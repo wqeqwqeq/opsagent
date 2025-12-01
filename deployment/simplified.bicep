@@ -28,8 +28,9 @@ param subnetAddressPrefix string
 // ======================== Internal ========================
 
 var resourcePrefixShort = replace(resourcePrefix, '-', '')
-var keyVaultName = '${resourcePrefixShort}kv4'
+var keyVaultName = '${resourcePrefixShort}kv'
 var postgresServerName = '${resourcePrefix}-postgres'
+var redisServerName = '${resourcePrefix}-redis'
 var AppSubnetName = 'appServiceSubnet'
 
 
@@ -427,9 +428,21 @@ resource postgresConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-
   ]
 }
 
+// Store PostgreSQL admin password in Key Vault
+resource postgresAdminPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-02-01' = {
+  name: 'POSTGRES-ADMIN-PASSWORD'
+  parent: keyVault
+  properties: {
+    value: postgresAdminPassword
+  }
+  dependsOn: [
+    keyVaultAccessPolicy
+  ]
+}
+
 // ======================== Azure Redis Cache ========================
 resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
-  name: '${resourcePrefix}-redis'
+  name: redisServerName
   location: location
   properties: {
     sku: {
@@ -444,6 +457,18 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
       'maxmemory-policy': 'allkeys-lru'  // Evict least recently used
     }
   }
+}
+
+// Store Redis password (primary access key) in Key Vault
+resource redisPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-02-01' = {
+  name: 'REDIS-PASSWORD'
+  parent: keyVault
+  properties: {
+    value: redisCache.listKeys().primaryKey
+  }
+  dependsOn: [
+    keyVaultAccessPolicy
+  ]
 }
 
 // ======================== Azure Storage Account ========================
