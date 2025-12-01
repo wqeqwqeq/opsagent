@@ -13,14 +13,14 @@ from ..tools.service_health_tools import (
     check_snowflake_health,
 )
 from ..utils.config_loader import load_agent_config
-from ..utils.settings import AzureOpenAISettings
+from ..utils.settings import get_azure_openai_settings
 
 
 def create_service_health_agent() -> ChatAgent:
     """Create and return the Service Health agent."""
     config_path = Path(__file__).parent.parent / "config" / "service_health_agent.yaml"
     config = load_agent_config(str(config_path))
-    settings = AzureOpenAISettings()
+    settings = get_azure_openai_settings()
 
     chat_client = AzureOpenAIChatClient(
         api_key=settings.api_key,
