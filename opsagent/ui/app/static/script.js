@@ -301,6 +301,19 @@ function renderConversation(convo) {
     }, 0);
 }
 
+function renderVideoLoading() {
+    currentView = 'video-gallery';
+    const canvas = document.getElementById('chat-canvas');
+    canvas.className = 'chat-canvas video-gallery';
+    setActiveNavItem('video-recording-btn');
+    canvas.innerHTML = `
+        <div class="video-loading-container">
+            <div class="video-loading-spinner"></div>
+            <div class="video-loading-text">Loading videos<span class="loading-dots"></span></div>
+        </div>
+    `;
+}
+
 function renderVideoGallery(videos) {
     currentView = 'video-gallery';
     const canvas = document.getElementById('chat-canvas');
@@ -1134,8 +1147,9 @@ async function init() {
     });
 
     document.getElementById('video-recording-btn').addEventListener('click', async () => {
+        renderVideoLoading();  // Show loading immediately
         const videos = await fetchVideos();
-        renderVideoGallery(videos);
+        renderVideoGallery(videos);  // Replace loading with gallery
     });
 }
 
