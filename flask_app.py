@@ -18,7 +18,7 @@ from azure.storage.blob import BlobServiceClient
 
 from agent_framework import ChatMessage, Role
 from agent_framework.observability import setup_observability
-from opsagent.workflows.triage_workflow import create_triage_workflow, WorkflowInput
+from opsagent.workflows.triage_workflow import create_triage_workflow, WorkflowInput, MessageData
 from opsagent.ui.app.storage import ChatHistoryManager
 from opsagent.observability import EventStream, set_current_stream
 from opsagent.utils import AKV
@@ -184,8 +184,12 @@ def convert_messages(messages: List[Dict]) -> List[ChatMessage]:
 def call_llm(model: str, messages: List[Dict]) -> str:
     """Execute the triage workflow with conversation history."""
     try:
-        chat_messages = convert_messages(messages)
-        input_data = WorkflowInput(messages=chat_messages)
+        # Convert to MessageData for WorkflowInput (DevUI-compatible)
+        message_data = [
+            MessageData(role=msg["role"], text=msg["content"])
+            for msg in messages
+        ]
+        input_data = WorkflowInput(messages=message_data)
 
         # Run async workflow synchronously
         loop = asyncio.new_event_loop()

@@ -27,7 +27,14 @@ class AgentResponse:
     text: str
 
 
-# === Pydantic Models for Triage Output ===
+# === Pydantic Models for Input/Output ===
+class MessageData(BaseModel):
+    """Raw message data for DevUI compatibility."""
+
+    role: str
+    text: str
+
+
 class TaskAssignment(BaseModel):
     """A single task assignment to a specialized agent."""
 
@@ -55,11 +62,11 @@ class TriageResult:
 
 
 # === Input type for workflow ===
-@dataclass
-class WorkflowInput:
-    """Input for the triage workflow with full conversation history."""
+class WorkflowInput(BaseModel):
+    """Input for the triage workflow."""
 
-    messages: list[ChatMessage]  # Full conversation history
+    query: str = ""  # Simple string input for DevUI
+    messages: list[MessageData] = []  # Full message history for Flask
 
 
 # === Executors ===
@@ -70,12 +77,26 @@ async def store_query(
     input: WorkflowInput, ctx: WorkflowContext[AgentExecutorRequest]
 ) -> None:
     """Store conversation history and send to triage agent."""
+    # Handle both input modes: query (DevUI) or messages (Flask)
+    if input.messages:
+        # Flask mode: convert MessageData to ChatMessage
+        chat_messages = [
+            ChatMessage(
+                Role.USER if msg.role == "user" else Role.ASSISTANT,
+                text=msg.text,
+            )
+            for msg in input.messages
+        ]
+    else:
+        # DevUI mode: create single user message from query
+        chat_messages = [ChatMessage(Role.USER, text=input.query)]
+
     # Store the full conversation history for reference
-    await ctx.set_shared_state("conversation_history", input.messages)
+    await ctx.set_shared_state("conversation_history", chat_messages)
 
     # Extract latest user query for original_query (used in TriageResult)
     latest_query = ""
-    for msg in reversed(input.messages):
+    for msg in reversed(chat_messages):
         if msg.role == Role.USER:
             latest_query = msg.text
             break
@@ -83,7 +104,7 @@ async def store_query(
 
     # Send full history to triage agent
     await ctx.send_message(
-        AgentExecutorRequest(messages=input.messages, should_respond=True)
+        AgentExecutorRequest(messages=chat_messages, should_respond=True)
     )
 
 
