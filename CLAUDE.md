@@ -80,7 +80,7 @@ Preview infrastructure changes (dry run):
 
 Initialize PostgreSQL database:
 ```bash
-./deploy_script.sh db
+./deploy_script.sh db <postgres_password>
 ```
 
 Deploy application container:
@@ -90,7 +90,7 @@ Deploy application container:
 
 Full deployment (database + app):
 ```bash
-./deploy_script.sh all
+./deploy_script.sh all <postgres_password>
 ```
 
 ## Architecture
@@ -176,7 +176,6 @@ CHAT_HISTORY_MODE=local  # or local_psql, postgres, local_redis, redis
 # PostgreSQL (for non-local modes)
 POSTGRES_HOST=your-prefix-postgres.postgres.database.azure.com
 POSTGRES_ADMIN_LOGIN=pgadmin
-POSTGRES_ADMIN_PASSWORD=...
 POSTGRES_DATABASE=chat_history
 
 # Redis (for redis modes)

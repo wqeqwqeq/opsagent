@@ -230,11 +230,11 @@ function renderWelcomeScreen() {
     // Clear nav item active state
     setActiveNavItem(null);
 
-    const firstName = userInfo.user_name.split(' ')[0];
+    const firstName = userInfo.first_name || userInfo.user_name.split(' ')[0];
     chatCanvas.innerHTML = `
         <div class="chat-content-wrapper" style="align-items: center; justify-content: center;">
             <h1 class="welcome-text welcome-title">DAPE OpsAgent Manager</h1>
-            <h2 class="welcome-text welcome-subtitle">How can I help, ${firstName}</h2>
+            <h2 class="welcome-text welcome-subtitle">How can I help, ${firstName}?</h2>
         </div>
         <div class="input-wrapper">
             <div class="input-box">
@@ -1150,6 +1150,13 @@ async function init() {
         renderVideoLoading();  // Show loading immediately
         const videos = await fetchVideos();
         renderVideoGallery(videos);  // Replace loading with gallery
+    });
+
+    // User profile click handler - show principal info for postgres/redis modes
+    document.querySelector('.user-profile').addEventListener('click', () => {
+        if (userInfo.mode === 'postgres' || userInfo.mode === 'redis') {
+            alert(`X-Ms-Client-Principal-Name: ${userInfo.principal_name || 'N/A'}`);
+        }
     });
 }
 
