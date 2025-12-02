@@ -1152,12 +1152,12 @@ async function init() {
         renderVideoGallery(videos);  // Replace loading with gallery
     });
 
-    // User profile click handler - show principal info for postgres/redis modes
-    document.querySelector('.user-profile').addEventListener('click', () => {
-        if (userInfo.mode === 'postgres' || userInfo.mode === 'redis') {
-            alert(`X-Ms-Client-Principal-Name: ${userInfo.principal_name || 'N/A'}`);
-        }
-    });
+    // // User profile click handler - show principal info for postgres/redis modes
+    // document.querySelector('.user-profile').addEventListener('click', () => {
+    //     if (userInfo.mode === 'postgres' || userInfo.mode === 'redis') {
+    //         alert(`X-Ms-Client-Principal-Name: ${userInfo.principal_name || 'N/A'}`);
+    //     }
+    // });
 }
 
 // Start app
