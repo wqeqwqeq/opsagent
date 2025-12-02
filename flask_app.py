@@ -22,7 +22,7 @@ from agent_framework import ChatMessage, Role
 from agent_framework.observability import setup_observability
 from opsagent.workflows.triage_workflow import create_triage_workflow, WorkflowInput, MessageData
 from opsagent.ui.app.storage import ChatHistoryManager
-from opsagent.observability import EventStream, set_current_stream
+from opsagent.utils.observability import EventStream, get_appinsights_connection_string, set_current_stream
 from opsagent.utils import AKV
 
 # Load environment variables from .env file
@@ -30,7 +30,8 @@ load_dotenv()
 
 # Setup OpenTelemetry observability (traces to Application Insights)
 setup_observability(
-     enable_sensitive_data=True
+     enable_sensitive_data=True,
+     applicationinsights_connection_string = get_appinsights_connection_string()
 )
 
 # ----------------------------------------------------------------------------

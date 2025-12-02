@@ -19,6 +19,7 @@ from agent_framework.observability import get_tracer, setup_observability
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace.span import format_trace_id
 
+from opsagent.utils.observability import get_appinsights_connection_string
 from opsagent.workflows.triage_workflow import create_triage_workflow
 
 
@@ -64,12 +65,16 @@ async def main():
     # Enable sensitive data to see prompts/responses in traces
     enable_sensitive = os.environ.get("ENABLE_SENSITIVE_DATA", "true").lower() == "true"
 
+    # Get App Insights connection string from Key Vault or env
+    appinsights_conn_str = get_appinsights_connection_string()
+
     print(f"Tracing enabled with Aspire Dashboard at: {ASPIRE_OTLP_ENDPOINT}")
     print(f"View traces at: http://localhost:18888")
 
     setup_observability(
         otlp_endpoint=ASPIRE_OTLP_ENDPOINT,
         enable_sensitive_data=enable_sensitive,
+        applicationinsights_connection_string=appinsights_conn_str,
     )
 
     # Create a root span for the entire scenario

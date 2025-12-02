@@ -471,6 +471,18 @@ resource redisPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-02-01' = {
   ]
 }
 
+// Store Application Insights connection string in Key Vault
+resource appInsightsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-02-01' = {
+  name: 'APPLICATIONINSIGHTS-CONNECTION-STRING'
+  parent: keyVault
+  properties: {
+    value: appInsights.properties.ConnectionString
+  }
+  dependsOn: [
+    keyVaultAccessPolicy
+  ]
+}
+
 // ======================== Azure Storage Account ========================
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: '${resourcePrefixShort}stg'  // e.g., stanleydevuistg (no hyphens)
