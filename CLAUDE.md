@@ -33,7 +33,7 @@ The app runs on `http://localhost:8000` by default.
 
 Run the DevUI server (launches workflow at http://localhost:8090):
 ```bash
-python main.py
+python workflow_run/workflow_run_devui.py
 ```
 
 ### Install Dependencies
@@ -80,7 +80,7 @@ Preview infrastructure changes (dry run):
 
 Initialize PostgreSQL database:
 ```bash
-./deploy_script.sh db
+./deploy_script.sh db <postgres_password>
 ```
 
 Deploy application container:
@@ -90,7 +90,7 @@ Deploy application container:
 
 Full deployment (database + app):
 ```bash
-./deploy_script.sh all
+./deploy_script.sh all <postgres_password>
 ```
 
 ## Architecture
@@ -98,7 +98,10 @@ Full deployment (database + app):
 ```
 opsagent2/
 ├── flask_app.py                  # Main Flask application with REST API
-├── main.py                       # Workflow-only runner (DevUI)
+├── workflow_run/                 # Workflow runner scripts
+│   ├── workflow_run_devui.py     # DevUI server (http://localhost:8090)
+│   ├── workflow_run.py           # Direct workflow execution
+│   └── workflow_run_with_trace.py # Workflow with OpenTelemetry tracing
 ├── deployment/                   # Azure deployment scripts
 │   ├── build_container.sh        # Docker build & push to ACR
 │   ├── deploy_infra.sh           # Bicep infrastructure deployment
@@ -176,7 +179,6 @@ CHAT_HISTORY_MODE=local  # or local_psql, postgres, local_redis, redis
 # PostgreSQL (for non-local modes)
 POSTGRES_HOST=your-prefix-postgres.postgres.database.azure.com
 POSTGRES_ADMIN_LOGIN=pgadmin
-POSTGRES_ADMIN_PASSWORD=...
 POSTGRES_DATABASE=chat_history
 
 # Redis (for redis modes)

@@ -5,7 +5,7 @@ from agent_framework import ChatAgent
 from agent_framework.azure import AzureOpenAIChatClient
 from pydantic import BaseModel
 
-from ..observability import (
+from ..utils.observability import (
     observability_agent_middleware,
     observability_function_middleware,
 )

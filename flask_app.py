@@ -4,11 +4,13 @@ Flask-based chat UI backend with REST API endpoints.
 Supports persistent chat history via PostgreSQL/Redis/Local storage.
 """
 import asyncio
+import base64
+import json
 import os
 import uuid
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from flask import Flask, jsonify, request, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
@@ -20,7 +22,7 @@ from agent_framework import ChatMessage, Role
 from agent_framework.observability import setup_observability
 from opsagent.workflows.triage_workflow import create_triage_workflow, WorkflowInput, MessageData
 from opsagent.ui.app.storage import ChatHistoryManager
-from opsagent.observability import EventStream, set_current_stream
+from opsagent.utils.observability import EventStream, get_appinsights_connection_string, set_current_stream
 from opsagent.utils import AKV
 
 # Load environment variables from .env file
@@ -28,7 +30,8 @@ load_dotenv()
 
 # Setup OpenTelemetry observability (traces to Application Insights)
 setup_observability(
-     enable_sensitive_data=True
+     enable_sensitive_data=True,
+     applicationinsights_connection_string = get_appinsights_connection_string()
 )
 
 # ----------------------------------------------------------------------------
@@ -122,7 +125,7 @@ _active_streams: Dict[str, EventStream] = {}
 # ----------------------------------------------------------------------------
 # Authentication Helper
 # ----------------------------------------------------------------------------
-def get_user_info() -> Dict[str, str]:
+def get_user_info() -> Dict[str, Any]:
     """Extract user information from SSO headers or environment config.
 
     Supports five modes:
@@ -143,16 +146,37 @@ def get_user_info() -> Dict[str, str]:
 
     # Try to extract from SSO headers (postgres or redis mode)
     if CHAT_HISTORY_MODE in ["postgres", "redis"]:
-        user_name = request.headers.get('X-MS-CLIENT-PRINCIPAL-NAME')
+        principal_name = request.headers.get('X-MS-CLIENT-PRINCIPAL-NAME')
         user_id = request.headers.get('X-MS-CLIENT-PRINCIPAL-ID')
+        principal_raw = request.headers.get('X-Ms-Client-Principal')
 
-        if user_id and user_name:
-            return {
-                'user_id': user_id,
-                'user_name': user_name,
-                'is_authenticated': True,
-                'mode': CHAT_HISTORY_MODE
-            }
+        display_name = 'Unknown user'
+        first_name = 'there'
+        decoded_principal = None
+
+        if principal_raw:
+            try:
+                decoded_bytes = base64.b64decode(principal_raw)
+                decoded_principal = json.loads(decoded_bytes.decode('utf-8'))
+
+                # Find 'name' claim in the claims array
+                for claim in decoded_principal.get('claims', []):
+                    if claim.get('typ') == 'name':
+                        display_name = claim.get('val', 'Unknown user')
+                        first_name = display_name.split(' ')[0] if display_name else 'there'
+                        break
+            except Exception:
+                pass
+
+        return {
+            'user_id': user_id or 'unknown',
+            'user_name': display_name,
+            'first_name': first_name,
+            'principal_name': principal_name,
+            'decoded_principal': decoded_principal,
+            'is_authenticated': bool(user_id and principal_raw),
+            'mode': CHAT_HISTORY_MODE
+        }
 
     # Fallback for local mode or when SSO headers are unavailable
     return {
@@ -222,7 +246,6 @@ def models_list() -> List[str]:
         "gpt-4o",
         "gpt-4.1",
         "gpt-3.5-turbo",
-        "local-llm",
     ]
 
 

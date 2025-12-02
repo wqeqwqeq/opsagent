@@ -6,12 +6,12 @@
 # to Azure Web App
 #
 # Usage:
-#   ./deploy_script.sh [db|app|all]
+#   ./deploy_script.sh app              - Deploy application only
+#   ./deploy_script.sh db <password>    - Initialize database (requires password)
+#   ./deploy_script.sh all <password>   - Deploy both (requires password)
 #
-# Modes:
-#   db   - Initialize PostgreSQL database only
-#   app  - Deploy application only
-#   all  - Deploy both database and application (default)
+# Arguments:
+#   <password>  PostgreSQL admin password (required for db and all modes)
 #
 # Prerequisites:
 #   - Azure CLI installed and logged in (az login)
@@ -22,20 +22,30 @@
 
 set -euo pipefail
 
-MODE=${1:-all}
+MODE=${1:-}
+POSTGRES_PASSWORD=${2:-}
 
 # Validate mode parameter
-if [[ ! "$MODE" =~ ^(db|app|all)$ ]]; then
-    echo "❌ Error: Invalid mode '$MODE'"
+if [[ -z "$MODE" ]] || [[ ! "$MODE" =~ ^(db|app|all)$ ]]; then
+    echo "❌ Error: Invalid or missing mode"
     echo ""
-    echo "Usage: ./deploy_script.sh [db|app|all]"
-    echo ""
-    echo "Modes:"
-    echo "  db   - Initialize PostgreSQL database only"
-    echo "  app  - Deploy application only"
-    echo "  all  - Deploy both database and application (default)"
+    echo "Usage:"
+    echo "  ./deploy_script.sh app              - Deploy application only"
+    echo "  ./deploy_script.sh db <password>    - Initialize database (requires password)"
+    echo "  ./deploy_script.sh all <password>   - Deploy both (requires password)"
     echo ""
     exit 1
+fi
+
+# Validate password for db and all modes
+if [[ "$MODE" == "db" || "$MODE" == "all" ]]; then
+    if [[ -z "$POSTGRES_PASSWORD" ]]; then
+        echo "❌ Error: PostgreSQL password is required for '$MODE' mode"
+        echo ""
+        echo "Usage: ./deploy_script.sh $MODE <password>"
+        echo ""
+        exit 1
+    fi
 fi
 
 # Get script directory and load environment variables
@@ -60,7 +70,6 @@ REQUIRED_VARS=(
     "AZURE_RESOURCE_GROUP"
     "RESOURCE_PREFIX"
     "POSTGRES_ADMIN_LOGIN"
-    "POSTGRES_ADMIN_PASSWORD"
 )
 
 MISSING_VARS=()
@@ -158,7 +167,7 @@ deploy_database() {
     export PGUSER="$POSTGRES_ADMIN_LOGIN"
     export PGPORT="5432"
     export PGDATABASE="postgres"
-    export PGPASSWORD="$POSTGRES_ADMIN_PASSWORD"
+    export PGPASSWORD="$POSTGRES_PASSWORD"
     export PGSSLMODE="require"
 
     if psql -f "$SCRIPT_DIR/init.sql" 2>&1 | tee /tmp/init_sql.log; then

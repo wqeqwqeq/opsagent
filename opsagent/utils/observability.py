@@ -6,10 +6,54 @@ Events are emitted via a thread-safe EventStream that decouples
 middleware execution from HTTP response handling.
 """
 
+import logging
+import os
 import queue
 from typing import Optional
 
 from agent_framework import agent_middleware, function_middleware
+
+logger = logging.getLogger(__name__)
+
+
+def get_appinsights_connection_string() -> str:
+    """Get Application Insights connection string from environment or Key Vault.
+
+    Checks in order:
+    1. Environment variable 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+    2. Key Vault secret 'APPLICATIONINSIGHTS-CONNECTION-STRING'
+
+    Returns:
+        Application Insights connection string
+
+    Raises:
+        ValueError: If connection string not found in either source
+    """
+    # Try environment variable first
+    env_value = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    if env_value:
+        logger.info("Loaded App Insights connection string from environment")
+        return env_value
+
+    # Fall back to Key Vault
+    RESOURCE_PREFIX = os.getenv('RESOURCE_PREFIX', 'stanley-dev-ui')
+    vault_name = f"{RESOURCE_PREFIX.replace('-', '')}kv"
+    if vault_name:
+        try:
+            from opsagent.utils.keyvault import AKV
+            akv = AKV(vault_name)
+            secret_value = akv.get_secret("APPLICATIONINSIGHTS-CONNECTION-STRING")
+            if secret_value:
+                logger.info("Loaded App Insights connection string from Key Vault")
+                return secret_value
+        except Exception as e:
+            logger.warning(f"Failed to get App Insights connection string from Key Vault: {e}")
+
+    raise ValueError(
+        "Application Insights connection string not found. "
+        "Set APPLICATIONINSIGHTS_CONNECTION_STRING environment variable "
+        "or set RESOURCE_PREFIX with Key Vault secret 'APPLICATIONINSIGHTS-CONNECTION-STRING'."
+    )
 
 
 class EventStream:

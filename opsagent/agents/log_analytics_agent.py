@@ -3,7 +3,7 @@ from pathlib import Path
 from agent_framework import ChatAgent
 from agent_framework.azure import AzureOpenAIChatClient
 
-from ..observability import (
+from ..utils.observability import (
     observability_agent_middleware,
     observability_function_middleware,
 )
