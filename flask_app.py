@@ -246,7 +246,6 @@ def models_list() -> List[str]:
         "gpt-4o",
         "gpt-4.1",
         "gpt-3.5-turbo",
-        "local-llm",
     ]
 
 

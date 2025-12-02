@@ -119,7 +119,7 @@ Open http://localhost:8000
 
 **Workflow-only (DevUI):**
 ```bash
-python main.py
+python workflow_run/workflow_run_devui.py
 ```
 Open http://localhost:8090
 
@@ -237,8 +237,11 @@ https://{RESOURCE_PREFIX}-app.azurewebsites.net
 ```
 opsagent2/
 ├── flask_app.py              # Main Flask application
-├── main.py                   # Workflow-only runner (DevUI)
 ├── Dockerfile                # Container image definition
+├── workflow_run/             # Workflow runner scripts
+│   ├── workflow_run_devui.py     # DevUI server
+│   ├── workflow_run.py           # Direct workflow execution
+│   └── workflow_run_with_trace.py # Workflow with OpenTelemetry tracing
 ├── pyproject.toml            # Python dependencies
 ├── deployment/               # Azure deployment scripts
 │   ├── build_container.sh    # Docker build/push

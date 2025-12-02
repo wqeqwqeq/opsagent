@@ -586,7 +586,7 @@ function renderModelSelector() {
     // Render model options
     fetchModels().then(models => {
         modelMenu.innerHTML = models.map(model => {
-            const displayName = model.replace('gpt-', 'GPT-').replace('local-llm', 'Local LLM');
+            const displayName = model.replace('gpt-', 'GPT-');
             return `<div class="model-option" data-model="${model}">${displayName}</div>`;
         }).join('');
 

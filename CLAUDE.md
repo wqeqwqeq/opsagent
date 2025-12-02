@@ -33,7 +33,7 @@ The app runs on `http://localhost:8000` by default.
 
 Run the DevUI server (launches workflow at http://localhost:8090):
 ```bash
-python main.py
+python workflow_run/workflow_run_devui.py
 ```
 
 ### Install Dependencies
@@ -98,7 +98,10 @@ Full deployment (database + app):
 ```
 opsagent2/
 ├── flask_app.py                  # Main Flask application with REST API
-├── main.py                       # Workflow-only runner (DevUI)
+├── workflow_run/                 # Workflow runner scripts
+│   ├── workflow_run_devui.py     # DevUI server (http://localhost:8090)
+│   ├── workflow_run.py           # Direct workflow execution
+│   └── workflow_run_with_trace.py # Workflow with OpenTelemetry tracing
 ├── deployment/                   # Azure deployment scripts
 │   ├── build_container.sh        # Docker build & push to ACR
 │   ├── deploy_infra.sh           # Bicep infrastructure deployment
