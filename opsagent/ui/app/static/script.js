@@ -15,6 +15,9 @@ let currentVideoTitle = null;
 // Thinking events storage for flyout panel
 let currentThinkingEvents = [];
 
+// Feature flags from backend
+let showFuncResult = true;
+
 // ============================================================
 // API Client Functions
 // ============================================================
@@ -82,6 +85,16 @@ async function fetchVideos() {
     } catch (error) {
         console.error('Error fetching videos:', error);
         return [];
+    }
+}
+
+async function fetchSettings() {
+    try {
+        const res = await fetch(`${API_BASE}/api/settings`);
+        const settings = await res.json();
+        showFuncResult = settings.show_func_result;
+    } catch (error) {
+        console.error('Failed to fetch settings:', error);
     }
 }
 
@@ -989,24 +1002,33 @@ function renderFlyoutEvents() {
             html += `<div class="flyout-event">${escapeHtml(event.content)}</div>`;
             i++;
         } else if (event.type === 'function_start') {
-            // Look ahead for matching function_end
-            const funcName = event.function;
-            const args = event.arguments;
-            let result = null;
+            if (showFuncResult) {
+                // Show full function card with collapsible input/output
+                const funcName = event.function;
+                const args = event.arguments;
+                let result = null;
 
-            // Find matching end event
-            for (let j = i + 1; j < currentThinkingEvents.length; j++) {
-                if (currentThinkingEvents[j].type === 'function_end'
-                    && currentThinkingEvents[j].function === funcName) {
-                    result = currentThinkingEvents[j].result;
-                    break;
+                // Find matching end event
+                for (let j = i + 1; j < currentThinkingEvents.length; j++) {
+                    if (currentThinkingEvents[j].type === 'function_end'
+                        && currentThinkingEvents[j].function === funcName) {
+                        result = currentThinkingEvents[j].result;
+                        break;
+                    }
                 }
-            }
 
-            html += renderFunctionCard(funcName, args, result);
+                html += renderFunctionCard(funcName, args, result);
+            } else {
+                // Show simple text
+                html += `<div class="flyout-event">Calling ${escapeHtml(event.function)}...</div>`;
+            }
             i++;
         } else if (event.type === 'function_end') {
-            // Skip - already handled with function_start
+            if (!showFuncResult) {
+                // Show simple text when cards are disabled
+                html += `<div class="flyout-event">${escapeHtml(event.function)} finished</div>`;
+            }
+            // Skip when showFuncResult=true (handled by function_start)
             i++;
         } else {
             i++;
@@ -1242,6 +1264,9 @@ function escapeHtml(text) {
 // Initialization
 // ============================================================
 async function init() {
+    // Load settings/feature flags
+    await fetchSettings();
+
     // Load user info
     userInfo = await fetchUser();
     renderUserInfo();

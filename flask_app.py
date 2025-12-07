@@ -273,6 +273,14 @@ def api_models():
     return jsonify(models_list())
 
 
+@app.route('/api/settings')
+def api_settings():
+    """Get UI settings/feature flags."""
+    return jsonify({
+        'show_func_result': os.getenv('SHOW_FUNC_RESULT', 'true').lower() == 'true'
+    })
+
+
 @app.route('/api/conversations')
 def api_conversations():
     """List all conversations for the current user, sorted by last_modified (newest first)."""
