@@ -6,10 +6,11 @@ Events are emitted via a thread-safe EventStream that decouples
 middleware execution from HTTP response handling.
 """
 
+import json
 import logging
 import os
 import queue
-from typing import Optional
+from typing import Any, Optional
 
 from agent_framework import agent_middleware, function_middleware
 
@@ -131,20 +132,54 @@ async def observability_agent_middleware(context, next):  # type: ignore
         stream.emit(f"[{agent_name}] agent finished\n")
 
 
+def serialize_result(result: Any) -> Any:
+    """Serialize function result to JSON-safe format.
+
+    Args:
+        result: The function result to serialize.
+
+    Returns:
+        JSON-serializable representation of the result.
+    """
+    if result is None:
+        return None
+    if isinstance(result, str):
+        # Try to parse as JSON for pretty printing in frontend
+        try:
+            return json.loads(result)
+        except json.JSONDecodeError:
+            return result
+    if hasattr(result, "model_dump"):  # Pydantic model
+        return result.model_dump()
+    return str(result)
+
+
 @function_middleware
 async def observability_function_middleware(context, next):  # type: ignore
-    """Log function/tool calls.
+    """Log function/tool calls with input arguments and output results.
 
-    Emits events when a tool is called and when it completes.
-    Format: "Calling {function_name}..." and "{function_name} finished"
+    Emits structured JSON events when a tool is called and when it completes.
+    Events include:
+    - function_start: Contains function name and input arguments
+    - function_end: Contains function name and output result
     """
     stream = get_current_stream()
     func_name = context.function.name
 
     if stream:
-        stream.emit(f"Calling {func_name}...\n")
+        event = {
+            "type": "function_start",
+            "function": func_name,
+            "arguments": context.arguments.model_dump(),
+        }
+        stream.emit(json.dumps(event))
 
     await next(context)
 
     if stream:
-        stream.emit(f"{func_name} finished\n")
+        event = {
+            "type": "function_end",
+            "function": func_name,
+            "result": serialize_result(context.result),
+        }
+        stream.emit(json.dumps(event))

@@ -1252,6 +1252,111 @@ details[open] .chevron-icon {
     margin-bottom: 0;
 }
 
+/* Function Card in Flyout */
+.function-card {
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.function-card:last-child {
+    margin-bottom: 0;
+}
+
+.function-header {
+    padding: 10px 12px;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 0.8rem;
+    color: #666;
+}
+
+.function-name {
+    font-weight: 500;
+}
+
+.function-details {
+    border-top: 1px solid #e5e5e5;
+}
+
+.function-section {
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.function-section:last-child {
+    border-bottom: none;
+}
+
+.function-section-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: #888;
+    background-color: #f4f4f4;
+    transition: background-color 0.15s;
+    user-select: none;
+}
+
+.function-section-header:hover {
+    background-color: #eaeaea;
+}
+
+.section-chevron {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+}
+
+.section-chevron.expanded {
+    transform: rotate(90deg);
+}
+
+.function-section-content {
+    padding: 10px 12px;
+    background-color: #fff;
+    overflow: hidden;
+    max-height: 500px;
+    transition: max-height 0.25s ease, padding 0.25s ease;
+}
+
+.function-section-content.collapsed {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.json-display {
+    margin: 0;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: #333;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.json-display::-webkit-scrollbar {
+    width: 6px;
+}
+
+.json-display::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.json-display::-webkit-scrollbar-thumb {
+    background-color: #ccc;
+    border-radius: 3px;
+}
+
 /* Responsive: hide flyout on very small screens */
 @media (max-width: 600px) {
     .thinking-flyout {
