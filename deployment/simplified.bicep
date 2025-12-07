@@ -522,12 +522,23 @@ resource standupContainer 'Microsoft.Storage/storageAccounts/blobServices/contai
   }
 }
 
-// RBAC: Grant Storage Blob Data Reader role to Managed Identity
+// RBAC: Grant Storage Blob Data Reader role to Managed Identity (storage account level)
 var storageBlobDataReaderRoleId = '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'
 
 resource blobDataReaderRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(storageAccount.id, userAssignedIdentity.id, 'BlobDataReader')
   scope: storageAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataReaderRoleId)
+    principalId: userAssignedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// RBAC: Grant Storage Blob Data Reader role to Managed Identity (container level)
+resource containerBlobDataReaderRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(standupContainer.id, userAssignedIdentity.id, 'BlobDataReader')
+  scope: standupContainer
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataReaderRoleId)
     principalId: userAssignedIdentity.properties.principalId

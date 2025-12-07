@@ -15,6 +15,9 @@ let currentVideoTitle = null;
 // Thinking events storage for flyout panel
 let currentThinkingEvents = [];
 
+// Feature flags from backend
+let showFuncResult = true;
+
 // ============================================================
 // API Client Functions
 // ============================================================
@@ -82,6 +85,16 @@ async function fetchVideos() {
     } catch (error) {
         console.error('Error fetching videos:', error);
         return [];
+    }
+}
+
+async function fetchSettings() {
+    try {
+        const res = await fetch(`${API_BASE}/api/settings`);
+        const settings = await res.json();
+        showFuncResult = settings.show_func_result;
+    } catch (error) {
+        console.error('Failed to fetch settings:', error);
     }
 }
 
@@ -842,13 +855,52 @@ function appendThinkingEvent(message) {
     const indicator = document.querySelector('.thinking-indicator');
     if (!indicator) return;
 
-    // Store event for later flyout display
-    currentThinkingEvents.push(message.trim());
+    const trimmedMessage = message.trim();
 
-    const eventDiv = document.createElement('div');
-    eventDiv.className = 'thinking-event';
-    eventDiv.textContent = message.trim();
-    indicator.appendChild(eventDiv);
+    // Try to parse as JSON for structured function events
+    let eventData;
+    try {
+        eventData = JSON.parse(trimmedMessage);
+    } catch {
+        // Plain text event (agent events) - store as text type
+        currentThinkingEvents.push({ type: 'text', content: trimmedMessage });
+
+        const eventDiv = document.createElement('div');
+        eventDiv.className = 'thinking-event';
+        eventDiv.textContent = trimmedMessage;
+        indicator.appendChild(eventDiv);
+
+        const chatCanvas = document.getElementById('chat-canvas');
+        chatCanvas.scrollTop = chatCanvas.scrollHeight;
+        return;
+    }
+
+    // Handle structured function events
+    if (eventData.type === 'function_start') {
+        currentThinkingEvents.push({
+            type: 'function_start',
+            function: eventData.function,
+            arguments: eventData.arguments
+        });
+
+        // Display simple text in live indicator
+        const eventDiv = document.createElement('div');
+        eventDiv.className = 'thinking-event';
+        eventDiv.textContent = `Calling ${eventData.function}...`;
+        indicator.appendChild(eventDiv);
+    } else if (eventData.type === 'function_end') {
+        currentThinkingEvents.push({
+            type: 'function_end',
+            function: eventData.function,
+            result: eventData.result
+        });
+
+        // Display simple text in live indicator
+        const eventDiv = document.createElement('div');
+        eventDiv.className = 'thinking-event';
+        eventDiv.textContent = `${eventData.function} finished`;
+        indicator.appendChild(eventDiv);
+    }
 
     // Scroll to bottom
     const chatCanvas = document.getElementById('chat-canvas');
@@ -889,6 +941,103 @@ function replaceThinkingWithResponse(content) {
     chatCanvas.scrollTop = chatCanvas.scrollHeight;
 }
 
+// Render function card with collapsible input/output sections
+function renderFunctionCard(funcName, args, result) {
+    const argsJson = JSON.stringify(args, null, 2);
+    const resultJson = result !== null && result !== undefined ? JSON.stringify(result, null, 2) : null;
+
+    return `
+        <div class="function-card">
+            <div class="function-header">
+                <span class="function-name">Calling ${escapeHtml(funcName)}...</span>
+            </div>
+            <div class="function-details">
+                <div class="function-section">
+                    <div class="function-section-header" onclick="toggleFunctionSection(this)">
+                        <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                        <span>Input Parameters</span>
+                    </div>
+                    <div class="function-section-content collapsed">
+                        <pre class="json-display">${escapeHtml(argsJson)}</pre>
+                    </div>
+                </div>
+                ${resultJson !== null ? `
+                <div class="function-section">
+                    <div class="function-section-header" onclick="toggleFunctionSection(this)">
+                        <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                        <span>Output Result</span>
+                    </div>
+                    <div class="function-section-content collapsed">
+                        <pre class="json-display">${escapeHtml(resultJson)}</pre>
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// Toggle collapsible section in function card
+function toggleFunctionSection(header) {
+    const content = header.nextElementSibling;
+    const chevron = header.querySelector('.section-chevron');
+    content.classList.toggle('collapsed');
+    chevron.classList.toggle('expanded');
+}
+
+// Render all flyout events with function cards
+function renderFlyoutEvents() {
+    let html = '';
+    let i = 0;
+
+    while (i < currentThinkingEvents.length) {
+        const event = currentThinkingEvents[i];
+
+        if (event.type === 'text') {
+            // Plain text event (agent)
+            html += `<div class="flyout-event">${escapeHtml(event.content)}</div>`;
+            i++;
+        } else if (event.type === 'function_start') {
+            if (showFuncResult) {
+                // Show full function card with collapsible input/output
+                const funcName = event.function;
+                const args = event.arguments;
+                let result = null;
+
+                // Find matching end event
+                for (let j = i + 1; j < currentThinkingEvents.length; j++) {
+                    if (currentThinkingEvents[j].type === 'function_end'
+                        && currentThinkingEvents[j].function === funcName) {
+                        result = currentThinkingEvents[j].result;
+                        break;
+                    }
+                }
+
+                html += renderFunctionCard(funcName, args, result);
+            } else {
+                // Show simple text
+                html += `<div class="flyout-event">Calling ${escapeHtml(event.function)}...</div>`;
+            }
+            i++;
+        } else if (event.type === 'function_end') {
+            if (!showFuncResult) {
+                // Show simple text when cards are disabled
+                html += `<div class="flyout-event">${escapeHtml(event.function)} finished</div>`;
+            }
+            // Skip when showFuncResult=true (handled by function_start)
+            i++;
+        } else {
+            i++;
+        }
+    }
+
+    return html;
+}
+
 // Toggle thinking flyout panel (full-height right sidebar)
 function toggleThinkingFlyout(element) {
     // Close existing flyout if open
@@ -927,7 +1076,7 @@ function toggleThinkingFlyout(element) {
             </button>
         </div>
         <div class="flyout-content">
-            ${currentThinkingEvents.map(e => `<div class="flyout-event">${escapeHtml(e)}</div>`).join('')}
+            ${renderFlyoutEvents()}
         </div>
     `;
     mainArea.appendChild(flyout);
@@ -1115,6 +1264,9 @@ function escapeHtml(text) {
 // Initialization
 // ============================================================
 async function init() {
+    // Load settings/feature flags
+    await fetchSettings();
+
     // Load user info
     userInfo = await fetchUser();
     renderUserInfo();
