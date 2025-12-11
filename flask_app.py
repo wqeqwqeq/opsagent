@@ -21,6 +21,11 @@ from azure.storage.blob import BlobServiceClient
 from agent_framework import ChatMessage, Role
 from agent_framework.observability import setup_observability
 from opsagent.workflows.triage_workflow import create_triage_workflow, WorkflowInput, MessageData
+from opsagent.workflows.dynamic_workflow import (
+    create_dynamic_workflow,
+    WorkflowInput as DynamicWorkflowInput,
+    MessageData as DynamicMessageData,
+)
 from opsagent.ui.app.storage import ChatHistoryManager
 from opsagent.utils.observability import EventStream, get_appinsights_connection_string, set_current_stream
 from opsagent.utils import AKV
@@ -115,6 +120,10 @@ else:
 # ----------------------------------------------------------------------------
 WORKFLOW = create_triage_workflow()
 
+# Dynamic workflow (experimental) - controlled by DYNAMIC_PLAN env var
+DYNAMIC_PLAN = os.getenv("DYNAMIC_PLAN", "false").lower() == "true"
+DYNAMIC_WORKFLOW = create_dynamic_workflow() if DYNAMIC_PLAN else None
+
 # ----------------------------------------------------------------------------
 # Thinking Stream Management
 # ----------------------------------------------------------------------------
@@ -206,20 +215,34 @@ def convert_messages(messages: List[Dict]) -> List[ChatMessage]:
 
 
 def call_llm(model: str, messages: List[Dict]) -> str:
-    """Execute the triage workflow with conversation history."""
+    """Execute the triage workflow with conversation history.
+
+    Uses dynamic workflow if DYNAMIC_PLAN=true, otherwise uses triage workflow.
+    """
     try:
-        # Convert to MessageData for WorkflowInput (DevUI-compatible)
-        message_data = [
-            MessageData(role=msg["role"], text=msg["content"])
-            for msg in messages
-        ]
-        input_data = WorkflowInput(messages=message_data)
+        # Select workflow based on DYNAMIC_PLAN setting
+        if DYNAMIC_PLAN and DYNAMIC_WORKFLOW is not None:
+            # Use dynamic workflow with review loop
+            message_data = [
+                DynamicMessageData(role=msg["role"], text=msg["content"])
+                for msg in messages
+            ]
+            input_data = DynamicWorkflowInput(messages=message_data)
+            workflow = DYNAMIC_WORKFLOW
+        else:
+            # Use standard triage workflow
+            message_data = [
+                MessageData(role=msg["role"], text=msg["content"])
+                for msg in messages
+            ]
+            input_data = WorkflowInput(messages=message_data)
+            workflow = WORKFLOW
 
         # Run async workflow synchronously
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            result = loop.run_until_complete(WORKFLOW.run(input_data))
+            result = loop.run_until_complete(workflow.run(input_data))
         finally:
             loop.close()
 
@@ -548,5 +571,5 @@ def api_list_videos():
 # ----------------------------------------------------------------------------
 if __name__ == '__main__':
     # Development server (use Gunicorn for production)
-    app.run(host='0.0.0.0', port=8000, debug=True)
+    app.run(host='0.0.0.0', port=8001, debug=True)
 
