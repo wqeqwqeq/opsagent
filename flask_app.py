@@ -111,11 +111,6 @@ else:
 
 
 # ----------------------------------------------------------------------------
-# Initialize Workflow
-# ----------------------------------------------------------------------------
-WORKFLOW = create_triage_workflow()
-
-# ----------------------------------------------------------------------------
 # Thinking Stream Management
 # ----------------------------------------------------------------------------
 # Store active EventStream instances keyed by conversation_id
@@ -208,6 +203,9 @@ def convert_messages(messages: List[Dict]) -> List[ChatMessage]:
 def call_llm(model: str, messages: List[Dict]) -> str:
     """Execute the triage workflow with conversation history."""
     try:
+        # Create fresh workflow for this request (thread-safe for concurrent users)
+        workflow = create_triage_workflow()
+
         # Convert to MessageData for WorkflowInput (DevUI-compatible)
         message_data = [
             MessageData(role=msg["role"], text=msg["content"])
@@ -219,7 +217,7 @@ def call_llm(model: str, messages: List[Dict]) -> str:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            result = loop.run_until_complete(WORKFLOW.run(input_data))
+            result = loop.run_until_complete(workflow.run(input_data))
         finally:
             loop.close()
 
