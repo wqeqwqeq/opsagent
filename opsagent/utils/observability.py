@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import queue
+import threading
 from typing import Any, Optional
 
 from agent_framework import agent_middleware, function_middleware
@@ -98,19 +99,18 @@ class EventStream:
             yield event
 
 
-# Global stream instance (per-request, will be set by Flask)
-_current_stream: Optional[EventStream] = None
+# Thread-local storage for per-request stream (thread-safe for gthread/multi-thread)
+_thread_local = threading.local()
 
 
 def set_current_stream(stream: Optional[EventStream]):
-    """Set the current stream for middleware to use."""
-    global _current_stream
-    _current_stream = stream
+    """Set the current stream for this thread."""
+    _thread_local.current_stream = stream
 
 
 def get_current_stream() -> Optional[EventStream]:
-    """Get the current stream."""
-    return _current_stream
+    """Get the current stream for this thread."""
+    return getattr(_thread_local, 'current_stream', None)
 
 
 @agent_middleware
